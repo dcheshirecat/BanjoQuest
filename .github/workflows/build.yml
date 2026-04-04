@@ -12,7 +12,6 @@ jobs:
       contents: read
 
     env:
-      KEYSTORE_FILE: ${{ runner.temp }}/release-keystore.jks
       KEY_ALIAS: temp-release-key
 
     steps:
@@ -27,6 +26,9 @@ jobs:
 
       - name: Make gradlew executable
         run: chmod +x ./gradlew
+
+      - name: Set keystore path
+        run: echo "KEYSTORE_FILE=$RUNNER_TEMP/release-keystore.jks" >> "$GITHUB_ENV"
 
       - name: Generate temporary signing passwords
         run: |
@@ -49,11 +51,6 @@ jobs:
 
       - name: Build release APK
         run: ./gradlew clean assembleRelease
-        env:
-          KEYSTORE_FILE: ${{ env.KEYSTORE_FILE }}
-          KEYSTORE_PASSWORD: ${{ env.KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ env.KEY_ALIAS }}
-          KEY_PASSWORD: ${{ env.KEY_PASSWORD }}
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
