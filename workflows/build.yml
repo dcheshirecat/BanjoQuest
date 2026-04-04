@@ -1,40 +1,40 @@
 name: Build & Sign APK
 
 on:
-  push:
-    branches:
-      - main
-  workflow_dispatch:
+push:
+branches:
+- main
+workflow_dispatch:
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
+build:
+runs-on: ubuntu-latest
 
-    steps:
-      - uses: actions/checkout@v4
+steps:
+  - uses: actions/checkout@v4
 
-      - uses: actions/setup-java@v4
-        with:
-          java-version: '17'
-          distribution: 'temurin'
+  - uses: actions/setup-java@v4
+    with:
+      java-version: '17'
+      distribution: 'temurin'
 
-      - run: chmod +x gradlew
+  - run: chmod +x gradlew
 
-      - run: |
-          keytool -genkeypair \
-            -storetype PKCS12 \
-            -keystore app/keystore.jks \
-            -alias tempalias \
-            -keyalg RSA \
-            -keysize 2048 \
-            -validity 10000 \
-            -storepass temp123 \
-            -keypass temp123 \
-            -dname "CN=Test,O=Test,C=US"
+  - run: |
+      keytool -genkeypair \
+        -storetype PKCS12 \
+        -keystore app/keystore.jks \
+        -alias tempalias \
+        -keyalg RSA \
+        -keysize 2048 \
+        -validity 10000 \
+        -storepass temp123 \
+        -keypass temp123 \
+        -dname "CN=Test,O=Test,C=US"
 
-      - run: |
-          ./gradlew assembleRelease \
-            -Pandroid.injected.signing.store.file=app/keystore.jks \
-            -Pandroid.injected.signing.store.password=temp123 \
-            -Pandroid.injected.signing.key.alias=tempalias \
-            -Pandroid.injected.signing.key.password=temp123
+  - run: |
+      ./gradlew assembleRelease \
+        -Pandroid.injected.signing.store.file=app/keystore.jks \
+        -Pandroid.injected.signing.store.password=temp123 \
+        -Pandroid.injected.signing.key.alias=tempalias \
+        -Pandroid.injected.signing.key.password=temp123
