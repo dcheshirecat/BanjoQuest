@@ -1,56 +1,67 @@
-name: Build & Sign APK
+name: Build APK (Ephemeral Keystore)
 
 on:
-push:
-branches: [ main ]
-workflow_dispatch:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
 
 jobs:
-build:
-runs-on: ubuntu-latest
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
 
-env:
-  KEYSTORE_PASSWORD: temp123
-  KEY_ALIAS: banjoalias
-  KEY_PASSWORD: temp123
+    env:
+      KEYSTORE_FILE: ${{ runner.temp }}/release-keystore.jks
+      KEY_ALIAS: temp-release-key
 
-steps:
-  - name: Checkout code
-    uses: actions/checkout@v4
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-  - name: Set up JDK 17
-    uses: actions/setup-java@v4
-    with:
-      java-version: '17'
-      distribution: 'temurin'
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
 
-  - name: Make gradlew executable
-    run: chmod +x gradlew
+      - name: Make gradlew executable
+        run: chmod +x ./gradlew
 
-  - name: Generate keystore
-    run: |
-      keytool -genkeypair \
-        -storetype PKCS12 \
-        -keystore app/keystore.jks \
-        -alias $KEY_ALIAS \
-        -keyalg RSA \
-        -keysize 2048 \
-        -validity 10000 \
-        -storepass $KEYSTORE_PASSWORD \
-        -keypass $KEY_PASSWORD \
-        -dname "CN=BanjoQuest,O=Personal,C=US"
+      - name: Generate temporary signing passwords
+        run: |
+          echo "KEYSTORE_PASSWORD=$(openssl rand -hex 24)" >> "$GITHUB_ENV"
+          echo "KEY_PASSWORD=$(openssl rand -hex 24)" >> "$GITHUB_ENV"
 
-  - name: Build release APK
-    run: |
-      ./gradlew assembleRelease \
-        -Pandroid.injected.signing.store.file=app/keystore.jks \
-        -Pandroid.injected.signing.store.password=$KEYSTORE_PASSWORD \
-        -Pandroid.injected.signing.key.alias=$KEY_ALIAS \
-        -Pandroid.injected.signing.key.password=$KEY_PASSWORD
+      - name: Generate one-time keystore
+        run: |
+          keytool -genkeypair \
+            -v \
+            -keystore "$KEYSTORE_FILE" \
+            -storetype JKS \
+            -alias "$KEY_ALIAS" \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 7 \
+            -storepass "$KEYSTORE_PASSWORD" \
+            -keypass "$KEY_PASSWORD" \
+            -dname "CN=GitHub Actions, OU=CI, O=Personal Build, L=NA, S=NA, C=US"
 
-  - name: Upload APK artifact
-    uses: actions/upload-artifact@v4
-    with:
-      name: BanjoQuest-release
-      path: app/build/outputs/apk/release/app-release.apk
-      retention-days: 14
+      - name: Build release APK
+        run: ./gradlew clean assembleRelease
+        env:
+          KEYSTORE_FILE: ${{ env.KEYSTORE_FILE }}
+          KEYSTORE_PASSWORD: ${{ env.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ env.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ env.KEY_PASSWORD }}
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: BanjoQuest-release
+          path: app/build/outputs/apk/release/app-release.apk
+          retention-days: 14
+
+      - name: Delete temporary keystore
+        if: always()
+        run: rm -f "$KEYSTORE_FILE"
