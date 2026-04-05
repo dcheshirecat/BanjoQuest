@@ -165,26 +165,18 @@ jobs:
           include ':app'
           GRADLE
 
-      - name: Write gradle-wrapper.properties
+      - name: Write gradle.properties
         run: |
-          cat > gradle/wrapper/gradle-wrapper.properties << 'PROPS'
-          distributionBase=GRADLE_USER_HOME
-          distributionPath=wrapper/dists
-          distributionUrl=https\://services.gradle.org/distributions/gradle-8.2-bin.zip
-          zipStoreBase=GRADLE_USER_HOME
-          zipStorePath=wrapper/dists
+          cat > gradle.properties << 'PROPS'
+          android.useAndroidX=true
+          android.enableJetifier=true
+          org.gradle.jvmargs=-Xmx2048m
           PROPS
 
-      - name: Install Gradle wrapper scripts
+      - name: Generate Gradle wrapper
         run: |
-          wget -q https://raw.githubusercontent.com/gradle/gradle/v8.2.0/gradlew -O gradlew
+          gradle wrapper --gradle-version 8.2
           chmod +x gradlew
-          wget -q https://raw.githubusercontent.com/gradle/gradle/v8.2.0/gradlew.bat -O gradlew.bat
-          mkdir -p gradle/wrapper
-          wget -q "https://services.gradle.org/distributions/gradle-8.2-bin.zip" -O /tmp/gradle.zip
-          # We just need the wrapper jar
-          curl -sL https://raw.githubusercontent.com/gradle/gradle/v8.2.0/gradle/wrapper/gradle-wrapper.jar \
-            -o gradle/wrapper/gradle-wrapper.jar
 
       # ── Generate single-use keystore ──────────────────────────────────────
 
