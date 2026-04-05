@@ -173,10 +173,20 @@ jobs:
           org.gradle.jvmargs=-Xmx2048m
           PROPS
 
-      - name: Generate Gradle wrapper
+      - name: Download Gradle wrapper files
         run: |
-          gradle wrapper --gradle-version 8.2
+          mkdir -p gradle/wrapper
+          curl -sL https://raw.githubusercontent.com/gradle/gradle/v8.2.1/gradlew -o gradlew
           chmod +x gradlew
+          curl -sL https://raw.githubusercontent.com/gradle/gradle/v8.2.1/gradle/wrapper/gradle-wrapper.jar \
+            -o gradle/wrapper/gradle-wrapper.jar
+          cat > gradle/wrapper/gradle-wrapper.properties << 'PROPS'
+          distributionBase=GRADLE_USER_HOME
+          distributionPath=wrapper/dists
+          distributionUrl=https\://services.gradle.org/distributions/gradle-8.2.1-bin.zip
+          zipStoreBase=GRADLE_USER_HOME
+          zipStorePath=wrapper/dists
+          PROPS
 
       # ── Generate single-use keystore ──────────────────────────────────────
 
