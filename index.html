@@ -9,9 +9,9 @@
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    html, body { height: 100%; background: #090C1A; overflow: hidden; }
-    #root { height: 100vh; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+    *{box-sizing:border-box;margin:0;padding:0}
+    html,body{height:100%;background:#090C1A;overflow:hidden}
+    #root{height:100vh;overflow-y:auto;-webkit-overflow-scrolling:touch}
   </style>
 </head>
 <body>
@@ -19,29 +19,26 @@
   <script>
     window.storage = {
       async get(key) {
-        try { const v = localStorage.getItem('bq_'+key); return v!==null?{key,value:v}:null; }
-        catch { return null; }
+        try { const v=localStorage.getItem('bq_'+key); return v!==null?{key,value:v}:null; } catch{return null;}
       },
-      async set(key, value) {
-        try { localStorage.setItem('bq_'+key, value); return {key,value}; }
-        catch { return null; }
+      async set(key,value) {
+        try { localStorage.setItem('bq_'+key,value); return {key,value}; } catch{return null;}
       },
       async delete(key) {
-        try { localStorage.removeItem('bq_'+key); return {key,deleted:true}; }
-        catch { return null; }
+        try { localStorage.removeItem('bq_'+key); return {key,deleted:true}; } catch{return null;}
       },
       async list(prefix) {
         try {
-          const keys = Object.keys(localStorage)
+          const keys=Object.keys(localStorage)
             .filter(k=>k.startsWith('bq_')&&(!prefix||k.startsWith('bq_'+prefix)))
             .map(k=>k.slice(3));
           return {keys};
-        } catch { return {keys:[]}; }
+        } catch{return {keys:[]};}
       }
     };
 </script>
   <script type="text/babel">
-    const { useState, useEffect, useRef, useCallback } = React;
+    const {useState, useEffect, useRef, useCallback} = React;
 
 
 // ─────────────────────────────────────────────
@@ -597,50 +594,195 @@ function HomeView({ level, xp, streak, completedLessons, completedTechniques, da
 // ─────────────────────────────────────────────
 // LESSON TOOLS
 // ─────────────────────────────────────────────
-const LESSON_HINTS = {
-  "l3": {
-    0: { note:"Listen to the roll rhythm: even, steady, relaxed.", rolls:null, frets:null },
-    1: { note:"Thumb owns strings 4,3,5 · Index owns string 2 · Middle owns string 1", rolls:"T · I · M", frets:null },
-    2: { note:"Rest ring and pinky on the drum head. Feel the anchor point.", rolls:null, frets:null },
-    3: { note:"Pinch drill: pluck 5th and 1st string at the exact same time — 10 reps!", rolls:"T+M", frets:[{s:0,f:0},{s:1,f:0}] },
-    4: { note:"Forward roll: T · I · M repeated. Try it slowly with the metronome.", rolls:"T · I · M", frets:null },
+
+// ─────────────────────────────────────────────
+// ANIMATED BANJO TUTORIAL COMPONENT
+// ─────────────────────────────────────────────
+const STEP_ANIMS = {
+  l1:{
+    0:{type:"highlight",strings:[0,1,2,3,4],label:"The 5-String Banjo"},
+    1:{type:"cascade",strings:[4,3,2,1,0],label:"5th g · 1st D · 2nd B · 3rd G · 4th D"},
+    2:{type:"highlight",strings:[0],label:"5th string — the short drone"},
+    3:{type:"strum",strings:[0,1,2,3,4],label:"Open G chord — strum it!"},
+    4:{type:"highlight",strings:[],label:"Hold it like a friend"},
   },
-  "l4": {
-    0: { note:"Forward roll: 5th string, then 2nd, then 1st. Repeat forever.", rolls:"T · I · M", frets:[{s:0,f:0},{s:2,f:0},{s:1,f:0}] },
-    1: { note:"In tab: string 5 then 2 then 1. Over and over like a wheel.", rolls:"T · I · M", frets:[{s:0,f:0},{s:2,f:0},{s:1,f:0}] },
-    2: { note:"Start slow! Set the metronome to 60 BPM and build from there.", rolls:"T · I · M", frets:null },
-    3: { note:"Every note the same volume. No accents. Pure even flow.", rolls:"T · I · M", frets:[{s:0,f:0},{s:2,f:0},{s:1,f:0}] },
-    4: { note:"While right hand rolls, left hand frets the melody. Magic!", rolls:"T · I · M", frets:null },
+  l2:{
+    0:{type:"strum",strings:[0,1,2,3,4],label:"Open G tuning · gDGBD"},
+    1:{type:"cascade",strings:[4,3,2,1,0],label:"Low to high: D · G · B · D · g"},
+    2:{type:"highlight",strings:[0,3],label:"Both G strings — one octave apart!"},
+    3:{type:"strum",strings:[0,1,2,3,4],label:"Tune up — strum and listen!"},
+    4:{type:"strum",strings:[0,1,2,3,4],label:"Tune every single time you play"},
   },
-  "l5": {
-    0: { note:"Hammer-on: pick an open string, then slam a finger on a higher fret.", rolls:null, frets:[{s:3,f:0},{s:3,f:2}] },
-    1: { note:"Tab reads 0h2: pick open (0), then hammer fret 2.", rolls:null, frets:[{s:3,f:0},{s:3,f:2}] },
-    2: { note:"FORCE is key. A weak hammer sounds dead. Really slam it down!", rolls:null, frets:[{s:3,f:2}] },
-    3: { note:"Practice on 3rd string: open G, hammer fret 2 (A). Clean and clear!", rolls:null, frets:[{s:3,f:0},{s:3,f:2}] },
-    4: { note:"Hammer-ons flow inside rolls: two notes for the price of one pick.", rolls:"T · I · M", frets:[{s:3,f:0},{s:3,f:2}] },
+  l3:{
+    0:{type:"roll",sequence:[{s:0,f:0,pick:"T"},{s:2,f:0,pick:"I"},{s:1,f:0,pick:"M"}],label:"Three-finger picking"},
+    1:{type:"fingers",assignments:[{s:0,f:0,pick:"T"},{s:2,f:0,pick:"I"},{s:1,f:0,pick:"M"}],label:"T owns 5th · I owns 2nd · M owns 1st"},
+    2:{type:"highlight",strings:[],label:"Anchor ring + pinky on drum head"},
+    3:{type:"roll",sequence:[{s:0,f:0,pick:"T"},{s:1,f:0,pick:"M"}],label:"Pinch 5th + 1st at the same time!"},
+    4:{type:"roll",sequence:[{s:0,f:0,pick:"T"},{s:2,f:0,pick:"I"},{s:1,f:0,pick:"M"}],label:"T · I · M Forward Roll"},
   },
-  "l6": {
-    0: { note:"Slide: fret a note, pick it, then glide your finger to another fret.", rolls:null, frets:[{s:3,f:2},{s:3,f:4}] },
-    1: { note:"Tab: 2/4 means slide up from fret 2 to 4.", rolls:null, frets:[{s:3,f:2},{s:3,f:4}] },
-    2: { note:"Keep firm even pressure throughout. No dead spots in the glide!", rolls:null, frets:[{s:3,f:2},{s:3,f:4}] },
-    3: { note:"Most common slide: 3rd string, fret 2 slide to fret 4 (A to B).", rolls:null, frets:[{s:3,f:2},{s:3,f:4}] },
-    4: { note:"Slides replace picks in a roll — they create a beautiful glide.", rolls:"T · I · M", frets:[{s:3,f:2},{s:3,f:4}] },
+  l4:{
+    0:{type:"roll",sequence:[{s:0,f:0,pick:"T"},{s:2,f:0,pick:"I"},{s:1,f:0,pick:"M"}],label:"5th → 2nd → 1st — repeat!"},
+    1:{type:"roll",sequence:[{s:0,f:0,pick:"T"},{s:2,f:0,pick:"I"},{s:1,f:0,pick:"M"}],label:"String 5 · String 2 · String 1"},
+    2:{type:"roll",sequence:[{s:0,f:0,pick:"T"},{s:2,f:0,pick:"I"},{s:1,f:0,pick:"M"}],tempo:600,label:"60 BPM — slow and even!"},
+    3:{type:"roll",sequence:[{s:0,f:0,pick:"T"},{s:2,f:0,pick:"I"},{s:1,f:0,pick:"M"}],label:"Every note the same volume"},
+    4:{type:"roll",sequence:[{s:0,f:0,pick:"T"},{s:2,f:2,pick:"I"},{s:1,f:0,pick:"M"},{s:0,f:0,pick:"T"},{s:2,f:0,pick:"I"},{s:1,f:2,pick:"M"}],label:"Add left-hand melody!"},
   },
-  "l7": {
-    0: { note:"Key of G, Open G tuning. The whole melody lives on the 1st string.", rolls:null, frets:[{s:1,f:0},{s:1,f:2}] },
-    1: { note:"A-Part melody on 1st string: fret 2, 2, open, 2, open, open.", rolls:"T · I · M", frets:[{s:1,f:2},{s:1,f:0}] },
-    2: { note:"B-Part: descend from 1st string fret 2 down to open 3rd string.", rolls:"T · I · M", frets:[{s:1,f:2},{s:2,f:0},{s:3,f:0}] },
-    3: { note:"Structure: AABB. Play each part twice. Start at 60 BPM.", rolls:"T · I · M", frets:null },
-    4: { note:"At 100 BPM this groove feels like real bluegrass! Use the metronome.", rolls:"T · I · M", frets:null },
+  l5:{
+    0:{type:"hammer",string:3,from:0,to:2,label:"Hammer-on: G → A on 3rd string"},
+    1:{type:"hammer",string:3,from:0,to:2,label:"Tab reads 0h2: pick open, slam fret 2"},
+    2:{type:"hammer",string:3,from:0,to:2,label:"SLAM it down hard — force is everything!"},
+    3:{type:"hammer",string:3,from:0,to:2,label:"G string open then A at fret 2"},
+    4:{type:"roll",sequence:[{s:0,f:0,pick:"T"},{s:3,f:0,pick:"H"},{s:3,f:2,pick:"H"},{s:2,f:0,pick:"I"},{s:1,f:0,pick:"M"}],label:"Hammer-on inside the roll!"},
   },
-  "l8": {
-    0: { note:"Pull-off: fret two notes, pick the higher one, snap sideways off the string.", rolls:null, frets:[{s:1,f:2},{s:1,f:0}] },
-    1: { note:"Tab: 2p0 means at fret 2, pick it, then pull off to open string.", rolls:null, frets:[{s:1,f:2},{s:1,f:0}] },
-    2: { note:"Snap SIDEWAYS toward your palm, NOT straight up. Sideways re-plucks the string!", rolls:null, frets:[{s:1,f:2},{s:1,f:0}] },
-    3: { note:"Practice: 1st string, hold fret 2, pick it, then snap sideways. Hear it?", rolls:null, frets:[{s:1,f:2},{s:1,f:0}] },
-    4: { note:"Pull-offs give you two notes per pick. That is how fast bluegrass works!", rolls:"T · I · M", frets:[{s:1,f:2},{s:1,f:0}] },
+  l6:{
+    0:{type:"slide",string:3,from:2,to:4,label:"Slide: fret 2 to fret 4 on 3rd string"},
+    1:{type:"slide",string:3,from:2,to:4,label:"Tab: 2/4 — slide up!"},
+    2:{type:"slide",string:3,from:2,to:4,label:"Keep firm pressure the whole way"},
+    3:{type:"slide",string:3,from:2,to:4,label:"A → B on the 3rd string"},
+    4:{type:"slide",string:3,from:2,to:4,label:"Glide right into the roll"},
+  },
+  l7:{
+    0:{type:"highlight",strings:[1],label:"Melody lives on the 1st string!"},
+    1:{type:"roll",sequence:[{s:1,f:2,pick:"M"},{s:0,f:0,pick:"T"},{s:2,f:0,pick:"I"},{s:1,f:0,pick:"M"},{s:0,f:0,pick:"T"},{s:2,f:0,pick:"I"}],label:"A-Part: fret 2, 2, open, 2, open, open"},
+    2:{type:"roll",sequence:[{s:1,f:2,pick:"M"},{s:2,f:0,pick:"I"},{s:3,f:0,pick:"T"}],label:"B-Part: descend the strings"},
+    3:{type:"roll",sequence:[{s:0,f:0,pick:"T"},{s:2,f:0,pick:"I"},{s:1,f:0,pick:"M"}],label:"AABB — start at 60 BPM!"},
+    4:{type:"roll",sequence:[{s:0,f:0,pick:"T"},{s:2,f:0,pick:"I"},{s:1,f:0,pick:"M"}],tempo:300,label:"100 BPM — feel the groove!"},
+  },
+  l8:{
+    0:{type:"pulloff",string:1,from:2,to:0,label:"Pull-off: fret 2 to open on 1st string"},
+    1:{type:"pulloff",string:1,from:2,to:0,label:"Tab: 2p0 — pick fret 2, snap sideways"},
+    2:{type:"pulloff",string:1,from:2,to:0,label:"Snap SIDEWAYS toward palm — not straight up!"},
+    3:{type:"pulloff",string:1,from:2,to:0,label:"Hold fret 2 + prepare open, then snap"},
+    4:{type:"roll",sequence:[{s:0,f:0,pick:"T"},{s:2,f:0,pick:"I"},{s:1,f:2,pick:"M"},{s:1,f:0,pick:"P"}],label:"Pull-off inside a roll!"},
   },
 };
+
+const PICK_COLS = {T:"#FFB800",I:"#4ECDC4",M:"#FF6B35",H:"#9B59B6",P:"#E84855","○":"#4ECDC4","●":"#FFB800"};
+
+function AnimatedBanjo({ config, lesson }) {
+  const [frame, setFrame] = useState(0);
+  const [phase, setPhase] = useState(0);
+  const [cascadeIdx, setCascadeIdx] = useState(-1);
+  const timerRef = useRef(null);
+  const tempo = config?.tempo || 430;
+
+  useEffect(() => {
+    if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+    setFrame(0); setPhase(0); setCascadeIdx(-1);
+    if (!config) return;
+    if (config.type === "roll" && config.sequence) {
+      let i = 0;
+      timerRef.current = setInterval(() => { setFrame(i); i = (i+1) % config.sequence.length; }, tempo);
+    } else if (config.type === "hammer" || config.type === "slide" || config.type === "pulloff") {
+      timerRef.current = setInterval(() => setPhase(p => 1 - p), tempo * 2);
+    } else if (config.type === "strum" || config.type === "cascade") {
+      let i = 0;
+      timerRef.current = setInterval(() => {
+        setCascadeIdx(i % (config.strings.length + 1));
+        i++;
+      }, tempo / 3);
+    }
+    return () => { if (timerRef.current) clearInterval(timerRef.current); };
+  }, [config, tempo]);
+
+  if (!config) return null;
+
+  const getDot = (si) => {
+    if (config.type === "roll" && config.sequence) {
+      const c = config.sequence[frame];
+      if (c && c.s === si) return { fret: c.f || 0, label: c.pick || "●", col: PICK_COLS[c.pick] || "#FFB800" };
+    } else if ((config.type === "hammer" || config.type === "slide" || config.type === "pulloff") && config.string === si) {
+      const fret = phase === 0 ? config.from : config.to;
+      const lbl = config.type === "hammer" ? (phase===0?"○":"H") : config.type === "slide" ? (phase===0?"○":"→") : (phase===0?"●":"○");
+      return { fret, label: lbl, col: STRINGS[si].color };
+    } else if (config.type === "highlight" && config.strings && config.strings.includes(si)) {
+      return { fret: 0, label: "●", col: STRINGS[si].color, staticDot: true };
+    } else if ((config.type === "strum" || config.type === "cascade") && config.strings && cascadeIdx >= 0) {
+      const pos = config.strings.indexOf(si);
+      if (pos >= 0 && pos <= cascadeIdx % config.strings.length) return { fret: 0, label: "○", col: STRINGS[si].color };
+    } else if (config.type === "fingers" && config.assignments) {
+      const a = config.assignments.find(x => x.s === si);
+      if (a) return { fret: a.f || 0, label: a.pick || "●", col: PICK_COLS[a.pick] || STRINGS[si].color, staticDot: true };
+    }
+    return null;
+  };
+
+  const fretX = (fret) => fret === 0 ? 7 : (15 + ((fret - 0.5) / 5) * 80);
+
+  return (
+    <div style={{
+      background: "linear-gradient(160deg,#0C0F1E 0%,#070914 100%)",
+      border: `1px solid ${lesson.color}55`,
+      borderRadius: 14, padding: "12px 10px 14px",
+      marginBottom: 12,
+      boxShadow: `0 4px 24px ${lesson.color}12`,
+    }}>
+      <div style={{ display: "flex", marginLeft: 62, marginBottom: 4 }}>
+        {["O","1","2","3","4","5"].map((f,i) => (
+          <div key={i} style={{ flex: i===0?"0 0 36px":1, textAlign:"center",
+            fontFamily:"monospace", fontSize:9,
+            color:[3,5].includes(i)?lesson.color+"bb":C.muted,
+            fontWeight:[3,5].includes(i)?700:400 }}>{[3,5].includes(i)?"◆":f}</div>
+        ))}
+      </div>
+      {STRINGS.map((str, si) => {
+        const dot = getDot(si);
+        const thick = si===4?2.5:si===3?2:si<2?1:1.5;
+        return (
+          <div key={si} style={{ display:"flex", alignItems:"center", marginBottom: si<4?8:0 }}>
+            <div style={{
+              width:60, flexShrink:0, textAlign:"right", paddingRight:8,
+              fontFamily:"'Rajdhani',sans-serif", fontWeight:700, fontSize:10,
+              color: dot ? str.color : str.color+"44",
+              transition:"color 0.15s",
+            }}>{str.label}</div>
+            <div style={{ flex:1, height:30, position:"relative", display:"flex", alignItems:"center" }}>
+              {[0.167,0.333,0.5,0.667,0.833].map((p,i) => (
+                <div key={i} style={{ position:"absolute", left:`${14+p*86}%`,
+                  top:3, bottom:3, width:1, background:C.dim+"88" }} />
+              ))}
+              <div style={{ position:"absolute", left:"14%", top:0, bottom:0, width:2, background:"#444" }} />
+              <div style={{ position:"absolute", left:0, width:"14%", top:"50%",
+                transform:"translateY(-50%)", height:thick,
+                background: dot&&dot.fret===0 ? str.color : str.color+"33",
+                boxShadow: dot&&dot.fret===0 ? `0 0 8px ${str.color}` : "none",
+                transition:"all 0.12s" }} />
+              <div style={{ position:"absolute", left:"14%", right:0, top:"50%",
+                transform:"translateY(-50%)", height:thick,
+                background: dot ? `linear-gradient(90deg,${str.color},${str.color}55)` : str.color+"22",
+                boxShadow: dot ? `0 0 6px ${str.color}66` : "none",
+                transition:"all 0.12s" }} />
+              {dot && (
+                <div style={{
+                  position:"absolute",
+                  left:`${fretX(dot.fret)}%`,
+                  top:"50%", transform:"translate(-50%,-50%)",
+                  width:22, height:22, borderRadius:"50%",
+                  background: dot.col,
+                  boxShadow:`0 0 10px ${dot.col}cc,0 0 20px ${dot.col}44`,
+                  display:"flex", alignItems:"center", justifyContent:"center",
+                  fontFamily:"'Rajdhani',sans-serif", fontSize:9, fontWeight:900, color:"#090C1A",
+                  animation: dot.staticDot ? "glow-pulse 2s ease infinite" : "pop 0.15s ease both",
+                  zIndex:3,
+                  transition: config.type==="slide" && phase===1 ? "left 0.5s ease" : "none",
+                }}>
+                  {dot.label!=="●"&&dot.label!=="○"?dot.label:""}
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })}
+      {config.label && (
+        <div style={{ marginTop:10, textAlign:"center",
+          fontFamily:"'Rye',serif", fontSize:13, color:lesson.color,
+          letterSpacing:"0.04em", textShadow:`0 0 10px ${lesson.color}44` }}>
+          {config.label}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function LessonTools({ lesson, step, playNote }) {
   const [bpm, setBpm] = useState(80);
@@ -649,31 +791,13 @@ function LessonTools({ lesson, step, playNote }) {
   const [reps, setReps] = useState(0);
   const metroRef = useRef(null);
   const audioCtx = useRef(null);
-
-  const hints = (LESSON_HINTS[lesson.id] || {})[step] || null;
-  const rollLetters = hints && hints.rolls
-    ? hints.rolls.split(/[\s·]+/).filter(x => x.length > 0 && x !== "·")
-    : null;
-  const RCOL = { T:"#FFB800", I:"#4ECDC4", M:"#FF6B35", "T+M":"#E84855" };
+  const animConfig = (STEP_ANIMS[lesson.id] || {})[step] || null;
 
   const getCtx = () => {
     if (!audioCtx.current) audioCtx.current = new (window.AudioContext || window.webkitAudioContext)();
     if (audioCtx.current.state === "suspended") audioCtx.current.resume();
     return audioCtx.current;
   };
-
-  const tick = useCallback((beatIndex, total) => {
-    try {
-      const ctx = getCtx();
-      const osc = ctx.createOscillator();
-      const g = ctx.createGain();
-      osc.connect(g); g.connect(ctx.destination);
-      osc.frequency.value = beatIndex % 4 === 0 ? 1100 : 800;
-      g.gain.setValueAtTime(0.25, ctx.currentTime);
-      g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.06);
-      osc.start(); osc.stop(ctx.currentTime + 0.06);
-    } catch(e) {}
-  }, []);
 
   const stopMetro = useCallback(() => {
     if (metroRef.current) { clearInterval(metroRef.current); metroRef.current = null; }
@@ -683,113 +807,85 @@ function LessonTools({ lesson, step, playNote }) {
   const startMetro = useCallback(() => {
     stopMetro();
     let b = 0;
-    const total = rollLetters ? rollLetters.length : 4;
-    tick(b, total); setBeat(b % total);
-    metroRef.current = setInterval(() => {
-      b++;
-      tick(b, total); setBeat(b % total);
-    }, Math.round(60000 / bpm));
+    const tick = () => {
+      try {
+        const ctx = getCtx();
+        const osc = ctx.createOscillator();
+        const g = ctx.createGain();
+        osc.connect(g); g.connect(ctx.destination);
+        osc.frequency.value = b % 4 === 0 ? 1100 : 800;
+        g.gain.setValueAtTime(0.25, ctx.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.06);
+        osc.start(); osc.stop(ctx.currentTime + 0.06);
+      } catch(e) {}
+      setBeat(b % 4); b++;
+    };
+    tick();
+    metroRef.current = setInterval(tick, Math.round(60000 / bpm));
     setMetroOn(true);
-  }, [bpm, rollLetters, tick, stopMetro]);
+  }, [bpm, stopMetro]);
 
   useEffect(() => { if (metroOn) { stopMetro(); startMetro(); } }, [bpm]);
   useEffect(() => { stopMetro(); setReps(0); }, [step, lesson.id]);
   useEffect(() => () => stopMetro(), []);
 
-  if (!hints) return null;
+  const rollSeq = animConfig?.type === "roll" && animConfig.sequence ? animConfig.sequence : null;
+  const rollLabels = rollSeq ? [...new Set(rollSeq.map(x => x.pick))].filter(Boolean) : null;
+  const RCOL = {T:"#FFB800",I:"#4ECDC4",M:"#FF6B35",H:"#9B59B6",P:"#E84855"};
 
   return (
     <div style={{ marginBottom:16 }}>
-      <div style={{ background:`${lesson.color}15`, border:`1px solid ${lesson.color}44`,
-        borderRadius:10, padding:"10px 14px", marginBottom:10,
-        fontFamily:"'Rajdhani',sans-serif", color:C.text, fontSize:14, lineHeight:1.5 }}>
-        {hints.note}
-      </div>
+      <AnimatedBanjo config={animConfig} lesson={lesson} />
 
-      {rollLetters && (
+      {rollLabels && (
         <div style={{ background:C.surface, border:`1px solid ${C.border}`,
-          borderRadius:10, padding:"12px 14px", marginBottom:10 }}>
+          borderRadius:10, padding:"10px 12px", marginBottom:10 }}>
           <div style={{ fontFamily:"'Rajdhani',sans-serif", color:C.muted,
-            fontSize:10, fontWeight:700, letterSpacing:"0.1em", marginBottom:10 }}>
-            PICKING PATTERN
-          </div>
-          <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" }}>
-            {rollLetters.map((letter, i) => {
-              const col = RCOL[letter] || C.gold;
-              const isActive = metroOn && beat === i;
+            fontSize:10, fontWeight:700, letterSpacing:"0.1em", marginBottom:8 }}>PICKING PATTERN</div>
+          <div style={{ display:"flex", gap:6, alignItems:"center", flexWrap:"wrap" }}>
+            {rollSeq.map((item, i) => {
+              const col = RCOL[item.pick] || C.gold;
+              const isActive = metroOn && beat === i % 4;
               return (
                 <div key={i} style={{
-                  width:40, height:40, borderRadius:8,
+                  width:36, height:36, borderRadius:8,
                   background: isActive ? col : col+"22",
                   border:`2px solid ${col}`,
                   display:"flex", alignItems:"center", justifyContent:"center",
-                  fontFamily:"'Rye',serif", fontSize:15, color: isActive ? "#090C1A" : col,
-                  transition:"all 0.08s ease",
-                  transform: isActive ? "scale(1.2)" : "scale(1)",
-                  boxShadow: isActive ? `0 0 14px ${col}` : "none",
-                }}>{letter}</div>
+                  fontFamily:"'Rye',serif", fontSize:13, color: isActive?"#090C1A":col,
+                  transition:"all 0.08s",
+                  transform: isActive?"scale(1.2)":"scale(1)",
+                  boxShadow: isActive?`0 0 12px ${col}`:"none",
+                }}>{item.pick}</div>
               );
-            })}
-            <span style={{ fontFamily:"'Rajdhani',sans-serif", color:C.muted, fontSize:11, marginLeft:4 }}>
-              → repeat
-            </span>
-          </div>
-        </div>
-      )}
-
-      {hints.frets && hints.frets.length > 0 && (
-        <div style={{ background:C.surface, border:`1px solid ${C.border}`,
-          borderRadius:10, padding:"10px 14px", marginBottom:10 }}>
-          <div style={{ fontFamily:"'Rajdhani',sans-serif", color:C.muted,
-            fontSize:10, fontWeight:700, letterSpacing:"0.1em", marginBottom:8 }}>FRET POSITIONS</div>
-          <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
-            {hints.frets.map((fh, i) => {
-              const si = STRINGS[fh.s];
-              return (
-                <div key={i} style={{ background:`${si.color}18`,
-                  border:`1px solid ${si.color}55`, borderRadius:8,
-                  padding:"6px 12px", display:"flex", alignItems:"center", gap:8 }}>
-                  <div style={{ width:10, height:10, borderRadius:"50%",
-                    background:si.color, boxShadow:`0 0 6px ${si.color}` }} />
-                  <span style={{ fontFamily:"monospace", color:si.color, fontSize:13, fontWeight:700 }}>
-                    {si.label} · {fh.f === 0 ? "Open" : "Fret "+fh.f}
-                  </span>
-                </div>
-              );
-            })}
+            }).slice(0, 8)}
+            <span style={{ fontFamily:"'Rajdhani',sans-serif", color:C.muted, fontSize:11 }}>→ repeat</span>
           </div>
         </div>
       )}
 
       <div style={{ display:"flex", gap:8, alignItems:"stretch" }}>
         <div style={{ display:"flex", alignItems:"center", gap:6,
-          background:C.surface, border:`1px solid ${C.border}`,
-          borderRadius:10, padding:"6px 10px", flex:1 }}>
+          background:C.surface, border:`1px solid ${C.border}`, borderRadius:10,
+          padding:"6px 10px", flex:1 }}>
           <button onClick={()=>setBpm(b=>Math.max(40,b-5))}
-            style={{ background:"none", border:"none", color:C.muted,
-              fontSize:20, cursor:"pointer", lineHeight:1, padding:"0 3px" }}>−</button>
-          <span style={{ fontFamily:"'Rajdhani',sans-serif", color:C.gold,
-            fontWeight:700, fontSize:15, flex:1, textAlign:"center" }}>{bpm} BPM</span>
+            style={{ background:"none", border:"none", color:C.muted, fontSize:20, cursor:"pointer", padding:"0 3px" }}>−</button>
+          <span style={{ fontFamily:"'Rajdhani',sans-serif", color:C.gold, fontWeight:700, fontSize:14, flex:1, textAlign:"center" }}>{bpm} BPM</span>
           <button onClick={()=>setBpm(b=>Math.min(220,b+5))}
-            style={{ background:"none", border:"none", color:C.muted,
-              fontSize:20, cursor:"pointer", lineHeight:1, padding:"0 3px" }}>+</button>
+            style={{ background:"none", border:"none", color:C.muted, fontSize:20, cursor:"pointer", padding:"0 3px" }}>+</button>
         </div>
-        <button onClick={metroOn ? stopMetro : startMetro}
-          style={{ background:metroOn?lesson.color:C.surface,
-            border:`1px solid ${metroOn?lesson.color:C.border}`,
-            color:metroOn?"#090C1A":C.text, borderRadius:10, padding:"8px 14px",
-            fontFamily:"'Rajdhani',sans-serif", fontWeight:700, fontSize:13,
-            cursor:"pointer", flexShrink:0 }}>
-          {metroOn ? "⏹ Stop" : "\u25b6 Metro"}
-        </button>
-        <button onClick={()=>setReps(r=>r+1)}
-          style={{ background:C.surface, border:`1px solid ${C.border}`,
-            color:C.teal, borderRadius:10, padding:"8px 12px",
-            fontFamily:"'Rajdhani',sans-serif", fontWeight:700, fontSize:13,
-            cursor:"pointer", flexShrink:0, minWidth:52, textAlign:"center" }}
-          title="Tap to count practice reps">
-          {reps > 0 ? reps+"\u00d7" : "Rep"}
-        </button>
+        <button onClick={metroOn?stopMetro:startMetro} style={{
+          background:metroOn?lesson.color:C.surface,
+          border:`1px solid ${metroOn?lesson.color:C.border}`,
+          color:metroOn?"#090C1A":C.text, borderRadius:10, padding:"8px 12px",
+          fontFamily:"'Rajdhani',sans-serif", fontWeight:700, fontSize:13, cursor:"pointer", flexShrink:0
+        }}>{metroOn?"⏹ Stop":"▶ Metro"}</button>
+        <button onClick={()=>setReps(r=>r+1)} style={{
+          background:C.surface, border:`1px solid ${C.border}`, color:C.teal,
+          borderRadius:10, padding:"8px 10px",
+          fontFamily:"'Rajdhani',sans-serif", fontWeight:700, fontSize:13,
+          cursor:"pointer", flexShrink:0, minWidth:48, textAlign:"center"
+        }} title="Count your practice reps">{reps>0?reps+"×":"Rep"}</button>
       </div>
     </div>
   );
@@ -856,8 +952,8 @@ function LearnView({ lessons, completedLessons, activeLesson, setActiveLesson, c
             {/* Step content */}
             <div style={{
               background: C.surface, border: `1px solid ${C.border}`,
-              borderRadius: 12, padding: "18px 16px", minHeight: 100,
-              fontFamily: "'Rajdhani', sans-serif", fontSize: 16, color: C.text,
+              borderRadius: 12, padding: "14px 16px", minHeight: 80,
+              fontFamily: "'Rajdhani', sans-serif", fontSize: 15, color: C.text,
               lineHeight: 1.65, marginBottom: 12,
               animation: "slide-up 0.2s ease",
             }}>
@@ -1111,253 +1207,418 @@ function TechniquesView({ techniques, completedTechniques, activeTechnique, setA
 // ─────────────────────────────────────────────
 const SONG_LIBRARY = [
   { id:"bg1", title:"Cripple Creek", artist:"Traditional", genre:"Bluegrass", key:"G", capo:0, diff:"Beginner", bpm:"90-130",
-    desc:"The very first tune every banjo player learns. Short, joyful, endlessly satisfying in Open G.",
+    desc:"The very first tune every banjo player learns. Short, joyful, endlessly satisfying.",
     chords:"G  ·  D7  ·  C",
-    tab:"5|0---0---0---0---0---0---0---0-|\n1|--2-2-0---2-0-0---2-2-0---2-0-|\n2|0---0---0---0---0---0---0---0-|\n3|--0---0---0---0---0---0---0---|\n4|0---0---0---0---0---0---0---0-|\n(A-part x2, B-part x2)",
-    tips:["Forward roll: 5th to 2nd to 1st throughout. Melody lives on 1st string.", "Structure: AABB. Play A twice, then B twice, then repeat.", "Capo 2 for key of A if playing with a fiddle."] },
+    tab:"5|0---0---0---0---0---0---0---0-|\n1|--2-2-0---2-0-0---2-2-0---2-0-|\n2|0---0---0---0---0---0---0---0-|\n3|--0---0---0---0---0---0---0---|\n4|0---0---0---0---0---0---0---0-|",
+    tips:["Forward roll: 5th to 2nd to 1st. Melody on 1st string.", "Structure: AABB. Play each part twice.", "Capo 2 for key of A when playing with a fiddle."] },
   { id:"bg2", title:"Foggy Mountain Breakdown", artist:"Flatt & Scruggs", genre:"Bluegrass", key:"G", capo:0, diff:"Advanced", bpm:"120-180",
-    desc:"Earl Scruggs masterpiece and the defining sound of bluegrass. The roll pattern IS the song.",
+    desc:"Earl Scruggs masterpiece. The defining sound of bluegrass — the roll IS the song.",
     chords:"G  ·  Em  ·  C  ·  D",
-    tab:"Opening lick:\n5|0-0-0-0-0-0-0-0-0-0-0-0-|\n1|--0---0---2---0---2---2---|\n2|0---2---0---0---0---0---0-|\n3|--0---0---0---0---0---0---|\n4|0---0---0---0---0---0---0-|",
-    tips:["Start at 80 BPM. Speed is earned, never rushed.", "The famous lick: 5th open, 2nd fret 2, 1st open — repeat variations.", "Scruggs rolls create perpetual motion. Every 8th note must be even."] },
+    tab:"5|0---0---0---0---0---0---0---0-|\n1|--0---0---2---0---2---2---0---|\n2|0---2---0---0---0---0---0---0-|\n3|--0---0---0---0---0---0---0---|\n4|0---0---0---0---0---0---0---0-|",
+    tips:["Start at 80 BPM. Speed is earned, never rushed.", "Famous lick: 5th open, 2nd fret 2, 1st open — repeat.", "Every 8th note must be perfectly even."] },
   { id:"bg3", title:"Old Joe Clark", artist:"Traditional", genre:"Bluegrass", key:"A", capo:2, diff:"Beginner", bpm:"100-140",
     desc:"A fiddle tune staple. Capo 2 puts you in A while playing G shapes.",
     chords:"G (=A)  ·  F (=G)  in capo shapes",
     tab:"A-Part:\n5|0---0---0---0---0---0---0---0-|\n1|--2-0-0---0-0-0---2-0-0---0-0-|\n2|0---0---0---0---0---0---0---0-|\n3|--0---2---0---0---0---2---0---|\n4|0---0---0---0---0---0---0---0-|",
-    tips:["With capo 2, all G-shape chords sound as A. Magic!", "The F chord: barre fret 1 on strings 1-3.", "B-part descends — follow the melody down strings 1 and 2."] },
+    tips:["Capo 2 makes all G shapes sound as A. Magic!", "F chord: barre fret 1 on strings 1 and 2.", "B-part descends — follow melody down strings 1 and 2."] },
   { id:"bg4", title:"Boil Them Cabbage Down", artist:"Traditional", genre:"Bluegrass", key:"G", capo:0, diff:"Beginner", bpm:"80-120",
-    desc:"A perfect entry-level tune. Simple melody, strong rhythm, great even at slow tempos.",
+    desc:"Perfect entry-level tune. Simple melody, strong rhythm, sounds great even slow.",
     chords:"G  ·  D7",
     tab:"5|0---0---0---0---0---0---0---0-|\n1|--0-0-2---2-0-2---0-2-0---2-0-|\n2|0---0---0---0---0---0---0---0-|\n3|--0---0---0---0---0---0---0---|\n4|0---0---0---2---0---0---2---0-|",
-    tips:["Two chords only: G and D7. Perfect for building chord transition speed.", "Focus on keeping the roll even while your left hand changes chords.", "Great first song to sing along to. Very steady 4/4 pulse."] },
+    tips:["Only two chords: G and D7. Build transition speed.", "Keep the roll even while your left hand changes chords.", "Steady 4/4 time — great first song to sing along to."] },
   { id:"bg5", title:"Nine Pound Hammer", artist:"Traditional", genre:"Bluegrass", key:"G", capo:0, diff:"Beginner", bpm:"80-110",
-    desc:"A coal-mining work song turned bluegrass standard. Strong backbeat and singable melody.",
+    desc:"Coal-mining work song turned bluegrass standard. Strong backbeat, singable melody.",
     chords:"G  ·  C  ·  D7",
     tab:"5|0---0---0---0---0---0---0---0-|\n1|--0-2-0---2-0-2---0-2-0---0-2-|\n2|0---0---2---0---0---0---0---0-|\n3|--0---0---0---2---0---0---0---|\n4|0---0---0---0---0---0---0---0-|",
-    tips:["Three-chord song: G, C, D7. The backbone of bluegrass.", "Roll pattern switches to alternating thumb on the C chord.", "Try singing the melody while playing for multi-tasking practice."] },
+    tips:["Three chords: G, C, D7. The backbone of bluegrass.", "Alternating thumb on the C chord for a different feel.", "Try singing while playing — great multi-tasking practice."] },
   { id:"bg6", title:"Shady Grove", artist:"Traditional", genre:"Bluegrass", key:"Dm", capo:0, diff:"Intermediate", bpm:"80-110",
-    desc:"A haunting Dorian mode melody. Darker and more mysterious than standard major-key tunes.",
+    desc:"Haunting Dorian mode melody. Darker and more mysterious than major-key tunes.",
     chords:"Dm  ·  C  ·  Am",
     tab:"5|0---0---0---0---0---0---0---0-|\n1|--3-2-0---0-2-0---3-2-0---0-2-|\n2|0---0---3---0---0---0---3---0-|\n3|--2---0---2---0---2---0---2---|\n4|0---0---0---0---0---0---0---0-|",
-    tips:["The Dm shape: 2nd fret on 3rd string, open 2nd and 1st. Dark and beautiful.", "Dorian mode gives it that Celtic mystery — neither major nor minor.", "Play with a lilting feel rather than hard bluegrass drive."] },
+    tips:["Dm: 2nd fret on 3rd string, open 2nd and 1st. Beautiful.", "Dorian mode — neither major nor minor. Celtic mystery.", "Lilting feel rather than hard bluegrass drive."] },
   { id:"bg7", title:"Man of Constant Sorrow", artist:"Stanley Brothers", genre:"Bluegrass", key:"G", capo:0, diff:"Intermediate", bpm:"80-110",
-    desc:"Popularized by O Brother Where Art Thou. A timeless Appalachian song of hardship.",
+    desc:"Popularized by O Brother Where Art Thou. Timeless Appalachian song of hardship.",
     chords:"G  ·  C  ·  D",
     tab:"5|0---0---0---0---0---0---0---0-|\n1|--2-0-0---0-0-0---2-0-0---2-2-|\n2|0---0---0---0---0---0---0---0-|\n3|--0---2---0---0---0---2---0---|\n4|0---0---0---0---0---0---0---0-|",
-    tips:["Slow and dignified. Resist the urge to rush this one.", "The vocal melody sits high. Comp underneath with alternating thumb roll.", "G to C to D progression carries real emotional weight here."] },
+    tips:["Slow and dignified. Do not rush.", "Comp underneath with steady alternating thumb roll.", "G to C to D progression carries real emotional weight."] },
   { id:"bg8", title:"Roll in My Sweet Babys Arms", artist:"Flatt & Scruggs", genre:"Bluegrass", key:"G", capo:0, diff:"Intermediate", bpm:"100-140",
-    desc:"A joyful uptempo bluegrass standard. Pure Scruggs-style fun with a bouncy swing feel.",
+    desc:"Joyful uptempo bluegrass standard. Pure Scruggs-style fun.",
     chords:"G  ·  C  ·  D7",
     tab:"5|0---0---0---0---0---0---0---0-|\n1|--0-2-0---2-0-0---0-2-2---0-0-|\n2|0---0---0---0---0---0---0---0-|\n3|--2---0---0---2---2---0---0---|\n4|0---0---0---0---0---0---0---0-|",
-    tips:["Forward-reverse roll: T-I-M-T-I-T-M-I on the chorus.", "Tag the ending with the classic Scruggs G-lick.", "Keep the 5th string ringing as a drone throughout."] },
+    tips:["Forward-reverse roll: T-I-M-T-I-T-M-I on the chorus.", "Tag ending with the classic Scruggs G-lick.", "Keep the 5th string ringing as drone throughout."] },
   { id:"bg9", title:"Salt Creek", artist:"Bill Monroe", genre:"Bluegrass", key:"A", capo:2, diff:"Intermediate", bpm:"110-150",
-    desc:"A driving Bill Monroe instrumental. Capo 2, G shapes, maximum energy.",
+    desc:"Driving Bill Monroe instrumental. Capo 2, G shapes, maximum energy.",
     chords:"G (=A)  ·  D (=E)  ·  C (=D)  capo shapes",
     tab:"A-Part:\n5|0---0---0---0---0---0---0---0-|\n1|--0-2-0---2-0-0---0-2-0---0-0-|\n2|0---0---2---0---0---0---2---0-|\n3|--0---0---0---2---0---0---0---|\n4|0---0---0---0---0---0---0---0-|",
-    tips:["Classic Monroe drive. Accent beats 2 and 4 for that hard-driving feel.", "The B-part climbs up the neck. Watch frets 5 and 7 on the 1st string.", "This is a jam session staple. Learn it and you will play it every session."] },
+    tips:["Classic Monroe drive. Accent beats 2 and 4.", "B-part climbs the neck — watch frets 5 and 7.", "This is a jam session staple. Learn it and use it."] },
   { id:"bg10", title:"Rocky Top", artist:"Bryant & Bryant", genre:"Bluegrass", key:"G", capo:0, diff:"Beginner", bpm:"100-140",
     desc:"Tennessees anthem. Fast, bright, endlessly energetic — the definition of banjo joy.",
     chords:"G  ·  C  ·  D  ·  Am",
     tab:"5|0---0---0---0---0---0---0---0-|\n1|--2-0-0---0-0-0---2-0-0---2-2-|\n2|0---0---0---0---0---0---0---0-|\n3|--0---2---0---0---0---2---0---|\n4|0---0---0---0---0---0---0---0-|",
-    tips:["Bright, driving forward roll. Thumb hits the 5th string drone constantly.", "The Am chord bridges G and D. Notice how it adds tension before resolving.", "At 140 BPM this is pure joy. Work up slowly."] },
+    tips:["Bright driving roll. Thumb hits 5th string drone constantly.", "Am chord bridges G and D — notice the added tension.", "At 140 BPM this is pure joy. Work up slowly."] },
   { id:"bg11", title:"Will the Circle Be Unbroken", artist:"A.P. Carter", genre:"Bluegrass", key:"G", capo:0, diff:"Beginner", bpm:"70-100",
     desc:"The most iconic gospel-bluegrass anthem. Every picker knows this one by heart.",
     chords:"G  ·  C  ·  D7",
     tab:"5|0---0---0---0---0---0---0---0-|\n1|--0-2-0---2-0-2---0-0-2---0-2-|\n2|0---0---0---0---0---0---0---0-|\n3|--0---0---2---0---0---0---2---|\n4|0---0---0---0---0---0---0---0-|",
-    tips:["Stately and hymn-like. Do not rush. Let the chord changes breathe.", "The C chord on the word circle is the emotional peak.", "Sing the melody. The banjo should support, not overpower."] },
+    tips:["Stately and hymn-like. Do not rush.", "The C chord is the emotional peak. Give it space.", "Sing the melody. The banjo should support, not overpower."] },
   { id:"bg12", title:"Blackberry Blossom", artist:"Traditional", genre:"Bluegrass", key:"G", capo:0, diff:"Intermediate", bpm:"100-130",
-    desc:"A beloved fiddle tune that challenges you to play across all five strings.",
+    desc:"Beloved fiddle tune challenging you to play across all five strings.",
     chords:"G  ·  D  ·  Em  ·  C",
     tab:"A-Part:\n5|0---0---0---0---0---0---0---0-|\n1|--0-2-4---4-2-0---2-4-2---0-2-|\n2|0---0---0---0---0---0---0---0-|\n3|--0---0---2---0---0---0---2---|\n4|0---0---0---0---0---0---0---0-|",
-    tips:["Uses fret 4 on the 1st string — unusual in G but essential for this melody.", "The B-part drops to Em. Feel the emotional shift.", "Great tune for developing melodic (Bill Keith) style playing."] },
+    tips:["Uses fret 4 on 1st string — unusual but essential here.", "B-part drops to Em — feel the emotional shift.", "Great tune for melodic (Bill Keith) style playing."] },
   { id:"bg13", title:"Going Down the Road Feeling Bad", artist:"Woody Guthrie", genre:"Bluegrass", key:"G", capo:0, diff:"Beginner", bpm:"80-110",
-    desc:"Woody Guthrie made it famous, but it is old-time at heart. Rootsy and hugely singable.",
+    desc:"Rootsy and hugely singable. Woody Guthrie made it famous, old-time at heart.",
     chords:"G  ·  C  ·  D7",
     tab:"5|0---0---0---0---0---0---0---0-|\n1|--0-0-2---2-2-0---0-0-2---2-0-|\n2|0---0---0---2---0---0---0---0-|\n3|--0---0---0---0---0---0---0---|\n4|0---0---0---0---0---0---0---0-|",
-    tips:["Keep a loose, rolling feel. This is road music, not tight bluegrass.", "The C chord adds a slightly bluesier tinge. Lean into it.", "Classic three-chord progression. Perfect jam starter."] },
+    tips:["Loose rolling feel — this is road music, not tight bluegrass.", "C chord adds a bluesier tinge. Lean into it.", "Classic three-chord progression. Perfect jam starter."] },
+  { id:"bg14", title:"Dark Hollow", artist:"Grateful Dead", genre:"Bluegrass", key:"G", capo:0, diff:"Beginner", bpm:"80-100",
+    desc:"Old-time tune adopted by the Dead. Lonesome, haunted, deceptively simple.",
+    chords:"G  ·  C  ·  D7",
+    tab:"5|0---0---0---0---0---0---0---0-|\n1|--0-0-2---0-2-0---2-0-0---2-2-|\n2|0---0---0---0---0---0---0---0-|\n3|--0---0---2---0---0---0---0---|\n4|0---0---0---0---0---0---0---0-|",
+    tips:["Lonesome feeling from the 5th string open drone.", "G to C to D7 — simple enough to improvise variations.", "The Dead loved old-time music. This is proof."] },
   { id:"dy1", title:"Blowin in the Wind", artist:"Bob Dylan", genre:"Folk", key:"G", capo:0, diff:"Beginner", bpm:"70-90",
     desc:"Dylans most iconic protest song. Three chords, timeless melody, perfect campfire banjo.",
     chords:"G  ·  C  ·  D",
     tab:"5|0---0---0---0---0---0---0---0-|\n1|--0-0-2---2-2-0---0-2-0---0-0-|\n2|0---0---0---2---0---0---0---0-|\n3|--0---0---0---0---2---0---0---|\n4|0---0---0---0---0---0---0---0-|",
-    tips:["G to C to D is the entire harmonic world of this song. Simple and pure.", "Strum gently between melody notes for a folky, open sound.", "Sing the melody. The banjo should feel warm and conversational."] },
+    tips:["G to C to D is the entire harmonic world of this song.", "Strum gently between melody notes for a folky open sound.", "The banjo should feel warm and conversational here."] },
   { id:"dy2", title:"Knockin on Heavens Door", artist:"Bob Dylan", genre:"Folk", key:"G", capo:0, diff:"Beginner", bpm:"60-80",
     desc:"One of rocks most beautiful melodies. Simple and devastating on banjo.",
     chords:"G  ·  D  ·  Am  ·  C",
     tab:"5|0---0---0---0---0---0---0---0-|\n1|--0-2-0---2-0-2---0-2-0---0-2-|\n2|0---0---2---0---0---0---2---0-|\n3|--0---0---0---0---0---0---0---|\n4|0---0---0---0---0---0---0---0-|",
-    tips:["The G to D to Am to C progression is pure gold. Four chords, infinite emotion.", "Play it slowly and let every note sing. This song hates being rushed.", "Am chord: 2nd fret on 3rd string. Rich and mournful."] },
+    tips:["G to D to Am to C — four chords, infinite emotion.", "Play it slowly. This song hates being rushed.", "Am: 2nd fret on 3rd string. Rich and mournful."] },
   { id:"dy3", title:"The Times They Are A-Changin", artist:"Bob Dylan", genre:"Folk", key:"G", capo:0, diff:"Beginner", bpm:"60-80",
     desc:"Waltz time (3/4) — unusual for banjo but majestic. Dylans most urgent anthem.",
     chords:"G  ·  C  ·  D  ·  Em  ·  Am",
-    tab:"3/4 waltz time (3 beats per measure):\n5|0---0---0---0---0---0-|\n1|--2---0---2---0---2---|\n2|0---0---0---0---0---0-|\n3|--0---0---0---0---0---|\n4|0---0---0---0---0---0-|",
-    tips:["3/4 waltz feel: ONE-two-three, ONE-two-three. Count it out loud at first.", "Roll pattern: T-I-M per beat gives a three-finger waltz roll.", "The Em and Am chords add the somber, prophetic weight Dylan intended."] },
+    tab:"3/4 waltz time:\n5|0---0---0---0---0---0-|\n1|--2---0---2---0---2---|\n2|0---0---0---0---0---0-|\n3|--0---0---0---0---0---|\n4|0---0---0---0---0---0-|",
+    tips:["3/4 feel: ONE-two-three, ONE-two-three. Count out loud.", "T-I-M per beat gives a three-finger waltz roll.", "Em and Am chords add the somber prophetic weight."] },
   { id:"dy4", title:"Dont Think Twice Its Alright", artist:"Bob Dylan", genre:"Folk", key:"G", capo:0, diff:"Intermediate", bpm:"70-90",
-    desc:"Dylans most intricate acoustic piece translates beautifully to rolling banjo arpeggios.",
+    desc:"Dylans most intricate acoustic piece. Translates beautifully to rolling banjo arpeggios.",
     chords:"G  ·  D  ·  Em  ·  C  ·  A7",
     tab:"5|0---0---0---0---0---0---0---0-|\n1|--2-0-2---2-2-0---0-2-0---2-0-|\n2|0---0---2---0---0---0---0---0-|\n3|--0---0---0---0---2---0---0---|\n4|0---2---0---0---0---0---0---0-|",
-    tips:["The bassline walk via the 4th string is the signature move.", "Use alternating thumb roll to emphasize the walking bass feel.", "The A7 chord before D is the secret tension builder. Do not skip it."] },
+    tips:["The walking bassline via 4th string is the signature move.", "Alternating thumb roll emphasizes the walking bass feel.", "A7 before D is the secret tension builder. Keep it."] },
   { id:"dy5", title:"Mr Tambourine Man", artist:"Bob Dylan", genre:"Folk", key:"G", capo:2, diff:"Intermediate", bpm:"70-90",
-    desc:"Dreamy and poetic. Capo 2 gives the brightness of Dylans original A key.",
+    desc:"Dreamy and poetic. Capo 2 matches Dylans original A key.",
     chords:"G (=A)  ·  D (=E)  ·  C (=D)  capo shapes",
     tab:"5|0---0---0---0---0---0---0---0-|\n1|--2-0-2---0-2-0---2-0-2---0-0-|\n2|0---0---0---0---0---0---0---0-|\n3|--0---0---2---0---0---0---2---|\n4|0---0---0---0---0---0---0---0-|",
-    tips:["Let the melody float. This song is about atmosphere, not precision.", "The chord sequence G to D to C to G (capo 2) feels like drifting in a dream.", "Try a slow arpeggiated roll instead of hard Scruggs style. Ethereal."] },
+    tips:["Let the melody float. This song is about atmosphere.", "G to D to C to G (capo 2) feels like drifting in a dream.", "Slow arpeggiated roll instead of hard Scruggs — ethereal."] },
   { id:"ps1", title:"If I Had a Hammer", artist:"Pete Seeger", genre:"Folk", key:"G", capo:0, diff:"Beginner", bpm:"80-100",
-    desc:"Pete Seegers rallying cry for justice. Strong, singable, and banjo-perfect.",
+    desc:"Pete Seegers rallying cry for justice. Strong, singable, banjo-perfect.",
     chords:"G  ·  C  ·  D7  ·  Em",
     tab:"5|0---0---0---0---0---0---0---0-|\n1|--0-2-0---2-0-0---0-2-0---2-2-|\n2|0---0---0---0---0---0---0---0-|\n3|--0---0---0---2---0---0---0---|\n4|0---0---0---0---0---0---0---0-|",
-    tips:["Strong, declarative feel. Do not shy away from hitting the melody notes hard.", "The Em chord on the bridge adds real depth.", "Great song to sing at full volume with friends."] },
+    tips:["Strong declarative feel. Hit the melody notes hard.", "Em on the bridge adds real depth.", "Sing at full volume with friends around a fire."] },
   { id:"ps2", title:"Where Have All the Flowers Gone", artist:"Pete Seeger", genre:"Folk", key:"G", capo:0, diff:"Beginner", bpm:"65-80",
-    desc:"A gentle cyclical anti-war ballad. The repeating melody suits banjo beautifully.",
+    desc:"Gentle cyclical anti-war ballad. The repeating melody suits banjo beautifully.",
     chords:"G  ·  Em  ·  C  ·  D7",
     tab:"5|0---0---0---0---0---0---0---0-|\n1|--0-0-2---2-0-2---0-2-0---0-2-|\n2|0---0---0---0---0---0---0---0-|\n3|--2---0---2---0---0---0---0---|\n4|0---0---0---0---0---0---0---0-|",
-    tips:["The G to Em movement at the start of each verse is the emotional core.", "Play tenderly. This is a lament, not a hoedown.", "The melody repeats with each verse. Once learned it is effortless."] },
+    tips:["G to Em at the start of each verse is the emotional core.", "Play tenderly. This is a lament, not a hoedown.", "Once the melody is learned, it is effortless."] },
   { id:"ps3", title:"Turn Turn Turn", artist:"Pete Seeger", genre:"Folk", key:"G", capo:0, diff:"Beginner", bpm:"75-95",
-    desc:"Lyrics from Ecclesiastes, music by Seeger. A flowing hopeful melody.",
+    desc:"Lyrics from Ecclesiastes, music by Seeger. Flowing and hopeful.",
     chords:"G  ·  C  ·  D7  ·  F",
     tab:"5|0---0---0---0---0---0---0---0-|\n1|--2-0-2---0-0-2---2-0-2---0-0-|\n2|0---0---0---0---0---0---0---0-|\n3|--0---0---2---0---0---0---0---|\n4|0---0---0---0---0---0---0---0-|",
-    tips:["The F chord adds a surprising softness. Barre fret 1 on strings 1 and 2.", "Flowing, circular rhythm. The music itself turns like the seasons.", "The Byrds version is a great melody reference to listen to."] },
+    tips:["F chord adds surprising softness — barre fret 1 on strings 1-2.", "Flowing circular rhythm. The music itself turns.", "The Byrds version is a great melody reference."] },
   { id:"ps4", title:"This Land Is Your Land", artist:"Woody Guthrie", genre:"Folk", key:"G", capo:0, diff:"Beginner", bpm:"80-100",
     desc:"Americas true national anthem. Open G banjo was made for this song.",
     chords:"G  ·  D7  ·  C",
     tab:"5|0---0---0---0---0---0---0---0-|\n1|--2-2-0---2-0-0---2-2-0---0-2-|\n2|0---0---0---0---0---0---0---0-|\n3|--0---0---0---0---0---0---0---|\n4|0---0---0---0---0---0---0---0-|",
-    tips:["Strum between roll notes for a big open folk feel on the chorus.", "This song was made to be sung loudly with as many people as possible.", "Capo 3 if you want to match Pete Seegers original long-neck key."] },
+    tips:["Strum between roll notes for big open folk feel on chorus.", "Made to be sung loudly with as many people as possible.", "Capo 3 to match Pete Seegers long-neck key."] },
   { id:"ppm1", title:"Puff the Magic Dragon", artist:"Peter Paul & Mary", genre:"Folk", key:"G", capo:0, diff:"Beginner", bpm:"75-90",
-    desc:"Whimsical and warm. Beautiful on solo banjo — gentle enough for any audience.",
+    desc:"Whimsical and warm. Beautiful on solo banjo, gentle for any audience.",
     chords:"G  ·  Bm  ·  C  ·  D7  ·  Em",
     tab:"5|0---0---0---0---0---0---0---0-|\n1|--0-2-0---2-0-2---0-2-2---2-0-|\n2|0---0---0---0---0---0---0---0-|\n3|--2---0---2---0---0---0---0---|\n4|0---0---0---0---0---0---0---0-|",
-    tips:["Bm chord: fret 3 on strings 1 and 2. Adds a wistful aching quality.", "Keep it light and airy. This is a lullaby at heart.", "The move from Em back to G in the chorus is genuinely moving."] },
+    tips:["Bm: fret 3 on strings 1 and 2. Wistful and aching.", "Keep it light and airy. This is a lullaby at heart.", "Em back to G in the chorus is genuinely moving."] },
   { id:"ppm2", title:"Leaving on a Jet Plane", artist:"Peter Paul & Mary", genre:"Folk", key:"G", capo:0, diff:"Beginner", bpm:"70-90",
-    desc:"John Denver wrote it, PP&M made it famous. Warm, yearning, immediately singable.",
+    desc:"John Denver wrote it, PP&M made it famous. Warm, yearning, instantly singable.",
     chords:"G  ·  C  ·  D7",
     tab:"5|0---0---0---0---0---0---0---0-|\n1|--2-0-2---0-2-0---2-2-0---2-0-|\n2|0---0---0---0---0---0---0---0-|\n3|--0---0---2---0---0---0---0---|\n4|0---0---2---0---0---0---2---0-|",
-    tips:["Rock the roll gently. This needs warmth, not speed.", "The G to C transition is the signature move. Make it smooth.", "Simple enough to sing and play at the same time."] },
+    tips:["Rock the roll gently. This needs warmth, not speed.", "G to C transition is the signature. Make it smooth.", "Simple enough to sing and play simultaneously."] },
   { id:"ppm3", title:"500 Miles", artist:"Peter Paul & Mary", genre:"Folk", key:"G", capo:0, diff:"Beginner", bpm:"80-100",
-    desc:"Heartbreaking distance and longing. Energetic chorus, tender verses. Universally beloved.",
+    desc:"Heartbreaking distance and longing. Energetic chorus, tender verses.",
     chords:"G  ·  Em  ·  C  ·  D",
     tab:"5|0---0---0---0---0---0---0---0-|\n1|--0-0-2---0-2-0---2-0-2---0-2-|\n2|0---0---0---0---0---0---0---0-|\n3|--2---0---2---0---0---0---0---|\n4|0---0---0---0---0---0---0---0-|",
-    tips:["The G to Em to C to D circle is beautifully satisfying to play.", "Verse is restrained, chorus explodes. Match your energy to that.", "Em chord gives the verses their aching lonesome quality."] },
+    tips:["G to Em to C to D — satisfying circle to play.", "Verse restrained, chorus explodes. Match the energy.", "Em gives the verses their aching lonesome quality."] },
   { id:"jb1", title:"House of the Rising Sun", artist:"Traditional", genre:"Folk", key:"Am", capo:0, diff:"Intermediate", bpm:"60-80",
-    desc:"The most recorded American folk song. Minor key drama perfect for banjo.",
+    desc:"Most recorded American folk song. Minor key drama perfect for banjo.",
     chords:"Am  ·  C  ·  D  ·  F  ·  E7",
-    tab:"3/4 time:\n5|0---0---0---0---0---0---0---0-|\n1|--0-2-0---1-2-0---2-2-0---1-0-|\n2|0---0---0---0---0---0---2---0-|\n3|--2---0---0---0---0---0---0---|\n4|0---0---3---0---2---0---0---0-|",
-    tips:["Minor key. Am shape: 2nd fret 3rd string, open 2nd and 1st.", "The F chord: fret 1 on strings 1 and 2, fret 2 on 3rd. Grim and perfect.", "The E7 before Am is the door-closing moment. Let it breathe."] },
+    tab:"3/4 waltz time:\n5|0---0---0---0---0---0---0---0-|\n1|--0-2-0---1-2-0---2-2-0---1-0-|\n2|0---0---0---0---0---0---2---0-|\n3|--2---0---0---0---0---0---0---|\n4|0---0---3---0---2---0---0---0-|",
+    tips:["Am: 2nd fret 3rd string, open 2nd and 1st.", "F chord: fret 1 on strings 1-2, fret 2 on 3rd. Grim.", "E7 before Am is the door-closing moment."] },
   { id:"jb2", title:"Diamonds and Rust", artist:"Joan Baez", genre:"Folk", key:"D", capo:7, diff:"Intermediate", bpm:"65-80",
-    desc:"Baezs most personal song — bittersweet and hauntingly beautiful. Capo 7 for D.",
+    desc:"Baezs most personal song. Bittersweet, hauntingly beautiful. Capo 7 for D.",
     chords:"G (=D)  ·  Em (=Bm)  ·  C (=G)  capo shapes",
     tab:"5|0---0---0---0---0---0---0---0-|\n1|--2-0-2---2-2-0---2-0-0---0-2-|\n2|0---0---0---0---0---0---0---0-|\n3|--0---0---0---2---0---0---0---|\n4|0---0---0---0---0---0---0---0-|",
-    tips:["Capo 7 lets G shapes produce the warmth Baezs D key requires.", "Arpeggio-style picking suits this better than hard Scruggs rolls.", "Play softly. This song is a memory, not a performance."] },
+    tips:["Capo 7 produces the warmth Baezs D key requires.", "Arpeggio-style picking suits this over hard Scruggs rolls.", "Play softly. This song is a memory, not a performance."] },
   { id:"bt1", title:"Hey Jude", artist:"The Beatles", genre:"Rock", key:"G", capo:0, diff:"Beginner", bpm:"70-75",
     desc:"McCartneys anthem of encouragement. The verse melody rolls beautifully on banjo.",
     chords:"G  ·  D  ·  D7  ·  C",
     tab:"5|0---0---0---0---0---0---0---0-|\n1|--2-0-0---0-0-2---2-0-2---0-2-|\n2|0---0---2---0---0---0---0---0-|\n3|--0---0---0---0---0---0---0---|\n4|0---0---0---0---0---2---0---0-|",
-    tips:["The D7 chord adds gentle tension before resolving to G.", "Na-na-na chorus: strum open G with thumb for big sing-along feel.", "The rising melody on better-better-BETTER is 1st string: 0-2-0-2-4."] },
+    tips:["D7 adds gentle tension before resolving to G.", "Na-na-na chorus: strum open G with thumb for big sound.", "Rising melody on BETTER: 1st string 0-2-0-2-4."] },
   { id:"bt2", title:"Blackbird", artist:"The Beatles", genre:"Rock", key:"G", capo:0, diff:"Intermediate", bpm:"60-72",
-    desc:"McCartneys fingerpicking masterpiece. Works beautifully as a banjo melody piece.",
+    desc:"McCartneys fingerpicking masterpiece. Works beautifully as banjo melody.",
     chords:"G  ·  Am7  ·  C  ·  A7  ·  D",
     tab:"5|0---0---0---0---0---0---0---0-|\n1|--0-0-2---2-0-2---0-2-4---4-0-|\n2|0---0---0---0---0---0---0---0-|\n3|--0---0---0---0---0---0---2---|\n4|0---0---0---0---3---0---0---0-|",
-    tips:["The chromatic bass walk: 4th string descends 0-2-3. That is the signature.", "Focus on letting each melody note ring fully before rolling onward.", "Slower is better. This song rewards patience and beautiful tone."] },
+    tips:["Chromatic bass walk: 4th string descends 0-2-3.", "Let each melody note ring fully before rolling.", "Slower is better. This song rewards patience."] },
   { id:"bt3", title:"Here Comes the Sun", artist:"The Beatles", genre:"Rock", key:"G", capo:2, diff:"Intermediate", bpm:"75-85",
     desc:"Harrisons masterpiece. Capo 2 matches the original A key. Pure warmth.",
     chords:"G (=A)  ·  D (=E)  ·  C (=D)  capo shapes",
     tab:"5|0---0---0---0---0---0---0---0-|\n1|--2-0-0---0-0-0---2-0-0---0-0-|\n2|0---0---0---0---0---0---0---0-|\n3|--0---0---2---0---0---0---0---|\n4|0---0---0---0---0---0---0---0-|",
-    tips:["Opening riff: 1st string 2-0, 2nd string hammer 0h2, back to 1st string open.", "The syncopated rhythm is key. It is NOT straight 8th notes.", "Capo 2 brightens the whole thing. Harrison would approve."] },
+    tips:["Opening riff: 1st string 2-0, 2nd string 0h2, 1st string open.", "The rhythm is syncopated — not straight 8th notes.", "Capo 2 brightens everything. Harrison would approve."] },
   { id:"bt4", title:"Let It Be", artist:"The Beatles", genre:"Rock", key:"C", capo:5, diff:"Intermediate", bpm:"65-75",
     desc:"McCartneys hymn of acceptance. Capo 5 puts G shapes in C. Majestic.",
     chords:"G (=C)  ·  D (=G)  ·  Em (=Am)  ·  C (=F)  capo shapes",
     tab:"5|0---0---0---0---0---0---0---0-|\n1|--0-2-0---0-0-2---0-2-0---0-0-|\n2|0---0---0---0---0---0---0---0-|\n3|--0---2---0---0---2---0---0---|\n4|0---0---0---0---0---0---0---0-|",
-    tips:["Capo 5: G shapes sound in C. A warm church-like tonality.", "The Em (sounds as Am with capo) gives the verse its solemnity.", "Play the chorus with more strumming energy. It earned its grandeur."] },
+    tips:["Capo 5: G shapes sound in C — warm church-like tonality.", "Em (sounds as Am with capo) gives verse its solemnity.", "Chorus deserves more strumming energy. It earned it."] },
   { id:"bt5", title:"Norwegian Wood", artist:"The Beatles", genre:"Rock", key:"G", capo:0, diff:"Intermediate", bpm:"65-80",
-    desc:"Lennons cryptic folk-rock gem. 3/4 waltz time with an Eastern-tinged melody.",
+    desc:"Lennons cryptic folk-rock gem. 3/4 waltz time, Eastern-tinged melody.",
     chords:"G  ·  Gm  ·  F  ·  Em7",
     tab:"3/4 waltz:\n5|0---0---0---0---0---0-|\n1|--2-0-2---0-2-4---2-0-|\n2|0---0---0---0---0---0-|\n3|--0---0---0---0---0---|\n4|0---0---0---0---0---0-|",
-    tips:["The 3/4 feel gives it that Indian quality Lennon loved.", "Gm chord creates instant mystery: barre fret 3 on strings 1 and 2.", "Let fret 4 on the 1st string ring. That is the signature melodic peak."] },
+    tips:["3/4 feel gives it the Indian quality Lennon loved.", "Gm creates instant mystery: barre fret 3 on strings 1-2.", "Fret 4 on 1st string — the signature melodic peak."] },
   { id:"bt6", title:"With a Little Help From My Friends", artist:"The Beatles", genre:"Rock", key:"G", capo:0, diff:"Beginner", bpm:"75-85",
     desc:"Ringos warmest moment. A sing-along with a friendly shuffling feel.",
     chords:"G  ·  A  ·  D  ·  C",
     tab:"5|0---0---0---0---0---0---0---0-|\n1|--2-0-2---0-0-2---0-2-2---0-2-|\n2|0---0---0---0---0---0---0---0-|\n3|--0---0---2---0---0---0---0---|\n4|0---0---0---0---0---0---0---0-|",
-    tips:["The A chord brightens the chorus: 2nd fret on strings 1, 2, and 3.", "Upbeat shuffle feel. Accent the backbeat on beats 2 and 4.", "Made for singing with friends. Do not play this alone if you can help it."] },
+    tips:["A chord brightens the chorus: 2nd fret on strings 1, 2, 3.", "Upbeat shuffle feel. Accent beats 2 and 4.", "Made for singing with friends. Do not play this alone."] },
   { id:"ms1", title:"I Will Wait", artist:"Mumford & Sons", genre:"Rock", key:"G", capo:0, diff:"Beginner", bpm:"105-120",
-    desc:"Anthemic, stomping, pure banjo-forward Mumford. One of the greatest modern banjo songs.",
+    desc:"Anthemic, stomping, pure banjo-forward Mumford. A great modern banjo song.",
     chords:"G  ·  C  ·  D  ·  Em",
     tab:"5|0---0---0---0---0---0---0---0-|\n1|--0-0-0---2-0-0---0-0-0---0-0-|\n2|0---0---0---0---0---0---0---0-|\n3|--0---2---0---0---2---0---2---|\n4|0---0---0---0---0---0---0---0-|",
-    tips:["THE Mumford banjo song. The stamping rhythm is as important as the notes.", "Forward roll with strong thumb accents on beats 1 and 3.", "Let your picking energy build as the song builds. It is a rocket launch."] },
+    tips:["THE Mumford banjo song. Stamping rhythm is as important as notes.", "Forward roll with strong thumb accents on beats 1 and 3.", "Let your picking energy build as the song builds."] },
   { id:"ms2", title:"The Cave", artist:"Mumford & Sons", genre:"Rock", key:"G", capo:0, diff:"Intermediate", bpm:"100-120",
     desc:"Driving, urgent, emotionally epic. Banjo anchors the whole song.",
     chords:"G  ·  C  ·  D  ·  Em",
     tab:"5|0---0---0---0---0---0---0---0-|\n1|--2-0-2---0-0-2---2-0-0---0-2-|\n2|0---0---0---0---0---0---0---0-|\n3|--0---0---2---0---0---0---0---|\n4|0---0---0---0---0---0---0---0-|",
-    tips:["The intro banjo riff is all on the 1st and 2nd strings. Crisp and clear.", "The Em verse needs a softer touch. Contrast makes the chorus land harder.", "At full tempo this is a real workout. Build up over several weeks."] },
+    tips:["Intro riff is all on the 1st and 2nd strings. Crisp.", "Em verse needs softer touch — contrast makes chorus land.", "At full tempo this is a real workout. Build up slowly."] },
   { id:"ms3", title:"Little Lion Man", artist:"Mumford & Sons", genre:"Rock", key:"Dm", capo:0, diff:"Intermediate", bpm:"110-130",
-    desc:"Furious, fast, and deeply emotional. The banjo drives this like a locomotive.",
+    desc:"Furious, fast, deeply emotional. The banjo drives this like a locomotive.",
     chords:"Dm  ·  F  ·  C  ·  G",
     tab:"5|0---0---0---0---0---0---0---0-|\n1|--1-1-1---1-1-3---0-1-0---1-1-|\n2|0---0---0---0---0---0---0---0-|\n3|--2---0---3---0---0---0---2---|\n4|0---0---0---0---0---0---0---0-|",
-    tips:["Minor key feel. The Dm chord grounds this in something raw and urgent.", "F chord (fret 1 barre on strings 1-2) appears constantly. Get it solid.", "One of the fastest Mumford tunes. Master it slowly before pushing tempo."] },
+    tips:["Minor key. Dm grounds this in something raw and urgent.", "F chord (fret 1 barre on strings 1-2) appears constantly.", "One of the fastest Mumford tunes. Master it slowly first."] },
   { id:"ms4", title:"After the Storm", artist:"Mumford & Sons", genre:"Folk", key:"G", capo:0, diff:"Beginner", bpm:"80-100",
-    desc:"The most tender Mumford song. Quieter and more hopeful than their epics.",
+    desc:"The most tender Mumford song. Quieter and more hopeful.",
     chords:"G  ·  C  ·  D  ·  Em",
     tab:"5|0---0---0---0---0---0---0---0-|\n1|--0-2-0---0-0-2---2-0-2---0-0-|\n2|0---0---0---0---0---0---0---0-|\n3|--0---0---2---0---0---0---2---|\n4|0---0---0---0---0---0---0---0-|",
-    tips:["Play softly and leave space. This song breathes.", "The Em chord near the end of each line is the emotional payoff. Hold it.", "Perfect intro to Mumfords style before tackling their faster songs."] },
+    tips:["Play softly and leave space. This song breathes.", "Em near end of each line is the emotional payoff.", "Perfect intro to Mumfords style before faster songs."] },
   { id:"hz1", title:"Work Song", artist:"Hozier", genre:"Folk", key:"G", capo:0, diff:"Intermediate", bpm:"75-90",
     desc:"Rootsy, bluesy Hozier at his most earthy. The banjo riff was made for this.",
     chords:"G  ·  Em  ·  C  ·  D",
     tab:"5|0---0---0---0---0---0---0---0-|\n1|--0-0-2---2-0-2---0-0-2---2-0-|\n2|0---0---0---0---0---0---0---0-|\n3|--2---0---2---0---0---0---2---|\n4|0---0---0---2---0---0---0---0-|",
-    tips:["The Em chord is the emotional core. Hozier loves that minor VI chord.", "The blues feel comes from playing slightly behind the beat. Do not rush.", "Listen to the original. That guitar riff translates perfectly to banjo roll."] },
+    tips:["Em chord is the emotional core. Hozier loves that minor VI.", "Blues feel comes from playing slightly behind the beat.", "Listen to the original — that riff translates perfectly."] },
   { id:"hz2", title:"Cherry Wine", artist:"Hozier", genre:"Folk", key:"G", capo:0, diff:"Beginner", bpm:"60-75",
     desc:"Hushed, gentle, devastating. One of Hoziers most intimate performances.",
     chords:"G  ·  D  ·  Em  ·  C",
     tab:"5|0---0---0---0---0---0---0---0-|\n1|--0-2-0---0-0-2---0-2-0---0-0-|\n2|0---0---0---0---0---0---0---0-|\n3|--0---0---2---0---2---0---0---|\n4|0---0---0---0---0---0---0---0-|",
-    tips:["Play with the lightest touch possible. Barely breathe on the strings.", "The G to Em movement carries all the emotional weight of this song.", "Let the 5th string drone fade naturally. Do not re-pick it aggressively."] },
+    tips:["Lightest touch possible. Barely breathe on the strings.", "G to Em carries all the emotional weight of this song.", "Let the 5th string drone fade naturally."] },
   { id:"hz3", title:"Take Me to Church", artist:"Hozier", genre:"Rock", key:"Am", capo:0, diff:"Intermediate", bpm:"70-85",
     desc:"Hoziers breakthrough. Dark, powerful, gospel-tinged. Minor key at its most dramatic.",
     chords:"Am  ·  F  ·  C  ·  G  ·  E",
     tab:"5|0---0---0---0---0---0---0---0-|\n1|--0-1-0---0-0-1---0-0-0---1-0-|\n2|0---0---0---0---0---0---0---0-|\n3|--2---0---0---0---0---0---2---|\n4|0---0---3---0---0---0---0---0-|",
-    tips:["Am key: the 5th string drone (G) creates slight tension against Am. Beautiful.", "The F chord: fret 1 on strings 1-2, fret 2 on 3rd. Worth mastering.", "E chord before Am is the V-i resolution. The most dramatic move in music."] },
+    tips:["Am key: 5th string drone creates beautiful tension against Am.", "F chord: fret 1 on strings 1-2, fret 2 on 3rd. Master it.", "E chord before Am is the V-i resolution. Most dramatic move."] },
   { id:"hz4", title:"From Eden", artist:"Hozier", genre:"Folk", key:"G", capo:0, diff:"Intermediate", bpm:"70-85",
-    desc:"Lush, sensual, and serpentine. The rolling acoustic feel maps perfectly to banjo.",
+    desc:"Lush, sensual, serpentine. Rolling acoustic feel maps perfectly to banjo.",
     chords:"G  ·  D  ·  C  ·  Em",
     tab:"5|0---0---0---0---0---0---0---0-|\n1|--2-0-2---2-0-0---0-2-0---2-2-|\n2|0---0---0---0---0---0---0---0-|\n3|--0---0---2---0---0---0---0---|\n4|0---0---0---0---0---0---2---0-|",
-    tips:["The descending bassline on the 4th string adds the serpentine quality.", "Let the melody notes on the 1st string float above the roll.", "This song rewards a flowing arpeggiated feel over hard-driving rolls."] },
+    tips:["Descending bassline on 4th string adds the serpentine quality.", "Let melody notes on 1st string float above the roll.", "Flowing arpeggiated feel over hard-driving rolls."] },
   { id:"mc1", title:"Wagon Wheel", artist:"Old Crow Medicine Show", genre:"Country", key:"G", capo:0, diff:"Beginner", bpm:"85-105",
     desc:"The modern campfire anthem. The one banjo song to play at any party.",
     chords:"G  ·  D  ·  Em  ·  C",
     tab:"5|0---0---0---0---0---0---0---0-|\n1|--0-0-2---2-0-0---0-2-0---0-2-|\n2|0---0---0---0---0---0---0---0-|\n3|--0---0---2---0---2---0---0---|\n4|0---0---0---0---0---0---0---0-|",
-    tips:["G to D to Em to C. One of the most satisfying chord loops ever written.", "When everyone starts singing along: play louder, not faster.", "Capo 2 for key of A if you need to match a singers range."] },
+    tips:["G to D to Em to C — one of the most satisfying loops ever.", "When everyone sings along: play louder, not faster.", "Capo 2 for key of A to match a singers range."] },
   { id:"mc2", title:"Take Me Home Country Roads", artist:"John Denver", genre:"Country", key:"G", capo:0, diff:"Beginner", bpm:"80-100",
-    desc:"Pure Americana joy. West Virginia never sounded better than on a 5-string banjo.",
+    desc:"Pure Americana joy. West Virginia never sounded better on a 5-string.",
     chords:"G  ·  Em  ·  D  ·  C",
     tab:"5|0---0---0---0---0---0---0---0-|\n1|--2-2-0---2-0-0---0-2-2---0-2-|\n2|0---0---0---0---0---0---0---0-|\n3|--2---0---2---0---0---0---0---|\n4|0---0---0---0---0---0---0---0-|",
-    tips:["The Em chord at dark and dusty is where the nostalgia peaks.", "Sing it loud. This song was made for open roads and open hearts.", "Try a strum between roll patterns for a relaxed road-trip feel."] },
+    tips:["Em at dark and dusty is where the nostalgia peaks.", "Sing loud. Made for open roads and open hearts.", "Try a strum between roll patterns for road-trip feel."] },
   { id:"mc3", title:"Scarborough Fair", artist:"Traditional", genre:"Folk", key:"Am", capo:0, diff:"Intermediate", bpm:"55-70",
-    desc:"Medieval English ballad made timeless by Simon & Garfunkel. Hauntingly beautiful.",
+    desc:"Medieval English ballad made timeless by Simon & Garfunkel.",
     chords:"Am  ·  G  ·  C  ·  D",
     tab:"3/4 waltz:\n5|0---0---0---0---0---0-|\n1|--2-0-2---0-2-0---3-2-|\n2|0---0---0---0---0---0-|\n3|--2---0---0---0---2---|\n4|0---0---0---0---0---0-|",
-    tips:["The Am to G opening is immediately recognizable. Nail that transition first.", "3/4 waltz time: think ONE-two-three, ONE-two-three.", "The melody sits beautifully on strings 1 and 2. Follow it closely."] },
+    tips:["Am to G opening is immediately recognizable. Nail it first.", "3/4 waltz time: ONE-two-three, ONE-two-three.", "Melody sits beautifully on strings 1 and 2."] },
   { id:"mc4", title:"Goodnight Irene", artist:"Lead Belly", genre:"Folk", key:"G", capo:0, diff:"Beginner", bpm:"70-85",
-    desc:"One of the most beloved folk songs ever recorded. Timeless, simple, deeply human.",
+    desc:"One of the most beloved folk songs ever recorded. Timeless and deeply human.",
     chords:"G  ·  D7  ·  C",
     tab:"5|0---0---0---0---0---0---0---0-|\n1|--2-0-2---0-0-2---2-2-0---2-0-|\n2|0---0---0---0---0---0---0---0-|\n3|--0---0---0---0---0---0---0---|\n4|0---0---0---0---0---0---0---0-|",
-    tips:["Simple and direct. G to D7 to C is all you need.", "Sing it gently. This is a lullaby as much as a folk song.", "Perfect last song of the night around any fire."] },
-  { id:"mc5", title:"Dark Hollow", artist:"Traditional / Grateful Dead", genre:"Bluegrass", key:"G", capo:0, diff:"Beginner", bpm:"80-100",
-    desc:"Old-time tune adopted by the Dead. Lonesome, haunted, and deceptively simple.",
-    chords:"G  ·  C  ·  D7",
-    tab:"5|0---0---0---0---0---0---0---0-|\n1|--0-0-2---0-2-0---2-0-0---2-2-|\n2|0---0---0---0---0---0---0---0-|\n3|--0---0---2---0---0---0---0---|\n4|0---0---0---0---0---0---0---0-|",
-    tips:["The lonesome feeling comes from sitting on the open 5th string drone.", "G to C to D7. Simple enough to improvise variations after learning the melody.", "Great Dead song to play. The band loved old-time and bluegrass deeply."] },
-  { id:"mc6", title:"Long Black Veil", artist:"Lefty Frizzell", genre:"Country", key:"G", capo:0, diff:"Beginner", bpm:"70-85",
-    desc:"A gothic country classic with one of the most evocative melodies in American music.",
+    tips:["Simple and direct. G to D7 to C is all you need.", "Sing it gently. This is a lullaby as much as folk song.", "Perfect last song of the night around any fire."] },
+  { id:"jc1", title:"Ring of Fire", artist:"Johnny Cash", genre:"Country", key:"G", capo:0, diff:"Beginner", bpm:"90-110",
+    desc:"Cashs signature song with iconic mariachi-inspired horns — on banjo it sings!",
     chords:"G  ·  C  ·  D",
-    tab:"5|0---0---0---0---0---0---0---0-|\n1|--2-0-2---0-0-0---2-0-2---0-0-|\n2|0---0---0---0---0---0---0---0-|\n3|--0---0---2---0---0---0---0---|\n4|0---0---0---0---0---0---0---0-|",
-    tips:["Three chords, maximum atmosphere. The melody does all the work.", "Play with a slight swing feel. This lives between bluegrass and country.", "The Bands version with Levon Helm is the essential reference."] },
-  { id:"mc7", title:"Pretty Polly", artist:"Traditional", genre:"Bluegrass", key:"Dm", capo:0, diff:"Intermediate", bpm:"70-90",
-    desc:"A dark Appalachian ballad in Dorian mode. Eerie, minor-key, and utterly gripping.",
-    chords:"Dm  ·  C  ·  Am",
-    tab:"5|0---0---0---0---0---0---0---0-|\n1|--3-2-0---0-2-0---3-2-0---0-3-|\n2|0---0---3---0---0---0---3---0-|\n3|--2---0---2---0---2---0---2---|\n4|0---0---0---0---0---0---0---0-|",
-    tips:["Play slowly and let the dark melody breathe between notes.", "Minor-key drone on 5th string creates relentless tension.", "One of banjos most dramatic modal pieces. Embrace the darkness."] },
+    tab:"Iconic intro lick:\n5|0---0---0---0---0---0---0---0-|\n1|--2-0-0---0-0-0---2-0-0---0-0-|\n2|0---0---2---0---0---0---2---0-|\n3|--0---0---0---2---0---0---0---|\n4|0---0---0---0---0---0---0---0-|",
+    tips:["The iconic horn riff translates to banjo 1st string: 2-0 with roll.", "I fell in-to a burn-ing ring of fire: G / C / G / D / G.", "Keep it bright and bouncy. Cash himself loved the banjo sound."] },
+  { id:"jc2", title:"Folsom Prison Blues", artist:"Johnny Cash", genre:"Country", key:"G", capo:0, diff:"Beginner", bpm:"90-115",
+    desc:"Cashs definitive song. A story-teller classic with a driving railroad rhythm.",
+    chords:"G  ·  C  ·  D7",
+    tab:"5|0---0---0---0---0---0---0---0-|\n1|--0-0-2---2-2-0---0-0-2---2-0-|\n2|0---0---0---0---0---0---0---0-|\n3|--0---0---0---0---0---0---0---|\n4|0---0---0---0---0---0---0---0-|",
+    tips:["Driving railroad rhythm — keep the pulse absolutely steady.", "The C chord (verse 2) signals the emotional turn. Feel it.", "Sing it low and menacing. The banjo should growl here."] },
+  { id:"jc3", title:"I Walk the Line", artist:"Johnny Cash", genre:"Country", key:"G", capo:2, diff:"Intermediate", bpm:"80-100",
+    desc:"Cashs vow of fidelity. Capo 2 for the E key feeling Cash loved.",
+    chords:"G (=A)  ·  C (=D)  ·  D (=E)  capo shapes",
+    tab:"5|0---0---0---0---0---0---0---0-|\n1|--2-0-0---0-2-0---2-0-0---0-0-|\n2|0---0---2---0---0---0---2---0-|\n3|--0---0---0---0---0---0---0---|\n4|0---0---0---0---0---0---0---0-|",
+    tips:["Steady, disciplined feel. Cash literally kept the beat with his own voice.", "The modulating key changes between verses are its signature.", "Capo 2 gives the taut tension of Cashs original recording."] },
+  { id:"sg1", title:"The Sound of Silence", artist:"Simon & Garfunkel", genre:"Folk", key:"Am", capo:0, diff:"Intermediate", bpm:"65-80",
+    desc:"One of the most haunting melodies ever written. Am on banjo is stunning.",
+    chords:"Am  ·  G  ·  F  ·  C",
+    tab:"5|0---0---0---0---0---0---0---0-|\n1|--3-2-0---0-2-3---2-0-0---0-2-|\n2|0---0---2---0---0---0---2---0-|\n3|--2---0---0---0---2---0---0---|\n4|0---0---0---0---0---0---0---0-|",
+    tips:["Hello darkness my old friend: Am / Am / Am / Am descending.", "F chord: fret 1 on strings 1-2. Cold and cinematic.", "Let the melody breathe. Simon & Garfunkel never rushed this."] },
+  { id:"sg2", title:"The Boxer", artist:"Simon & Garfunkel", genre:"Folk", key:"G", capo:0, diff:"Intermediate", bpm:"70-85",
+    desc:"Arguably S&Gs finest song. A working-class story with a soaring chorus.",
+    chords:"G  ·  Em  ·  C  ·  D  ·  Am",
+    tab:"5|0---0---0---0---0---0---0---0-|\n1|--0-2-2---2-0-0---0-2-2---0-0-|\n2|0---0---0---0---0---0---0---0-|\n3|--0---0---0---0---0---0---0---|\n4|0---0---0---0---0---0---0---0-|",
+    tips:["The intro arpeggio on guitar becomes a gentle roll on banjo.", "LIE LA LIE: G chord, strum with thumb for the big moment.", "Am in the verse adds the working-man weariness. Lean into it."] },
+  { id:"sg3", title:"Mrs Robinson", artist:"Simon & Garfunkel", genre:"Folk", key:"G", capo:0, diff:"Intermediate", bpm:"90-110",
+    desc:"Bright, jangly, and percussive. One of the great folk-rock banjo opportunities.",
+    chords:"G  ·  E  ·  A  ·  D  ·  C",
+    tab:"5|0---0---0---0---0---0---0---0-|\n1|--2-0-0---0-0-0---2-0-2---0-0-|\n2|0---0---0---0---0---0---0---0-|\n3|--0---0---2---0---0---0---2---|\n4|0---0---0---0---0---0---0---0-|",
+    tips:["E chord (unusual in G key): fret 2 on strings 1, 2, 3, 4.", "A chord: 2nd fret on strings 1, 2, 3. Bright and staccato.", "The coo-coo-ca-choo lick lives on 1st string: 0-2-0-2."] },
+  { id:"sg4", title:"America", artist:"Simon & Garfunkel", genre:"Folk", key:"G", capo:2, diff:"Intermediate", bpm:"80-100",
+    desc:"A road-trip epic. Capo 2 for that dreamy open A key tonality.",
+    chords:"G (=A)  ·  D (=E)  ·  Em (=Bm)  ·  C (=D)  capo shapes",
+    tab:"5|0---0---0---0---0---0---0---0-|\n1|--0-2-0---2-0-0---0-2-0---0-2-|\n2|0---0---0---0---0---0---0---0-|\n3|--0---0---2---0---0---0---2---|\n4|0---0---0---0---0---0---0---0-|",
+    tips:["Flowing, searching feel — like watching the highway from a bus window.", "Capo 2 opens up the key beautifully for banjo.", "The Em (sounds Bm) gives the verses their wistful longing."] },
+  { id:"lm1", title:"Ho Hey", artist:"The Lumineers", genre:"Folk", key:"G", capo:0, diff:"Beginner", bpm:"95-110",
+    desc:"Instantly recognizable indie folk anthem. One of the best modern singalong songs.",
+    chords:"G  ·  C  ·  F",
+    tab:"5|0---0---0---0---0---0---0---0-|\n1|--0-0-0---0-0-0---1-0-0---0-0-|\n2|0---0---0---0---0---0---0---0-|\n3|--0---0---0---2---0---0---0---|\n4|0---0---0---0---0---0---0---0-|",
+    tips:["Ho! Hey! — stomp on the beat when playing those words.", "F chord: barre fret 1 on strings 1 and 2. Used constantly.", "Strum the C chord hard on the chorus — big singalong energy."] },
+  { id:"lm2", title:"Ophelia", artist:"The Lumineers", genre:"Folk", key:"G", capo:0, diff:"Intermediate", bpm:"95-115",
+    desc:"Driving and irresistible. The banjo propels this song forward relentlessly.",
+    chords:"G  ·  D  ·  Em  ·  C",
+    tab:"5|0---0---0---0---0---0---0---0-|\n1|--0-2-0---2-0-0---0-2-0---0-2-|\n2|0---0---0---0---0---0---0---0-|\n3|--0---0---2---0---2---0---0---|\n4|0---0---0---0---0---0---0---0-|",
+    tips:["OPHELIA! Alma mater: feel the upstroke energy of the chorus.", "G to D to Em to C — the indie folk progression of the decade.", "Keep the roll tight and even at the higher tempo."] },
+  { id:"lm3", title:"Stubborn Love", artist:"The Lumineers", genre:"Folk", key:"G", capo:0, diff:"Intermediate", bpm:"80-100",
+    desc:"Tender and earnest. One of Lumineers finest quiet moments.",
+    chords:"G  ·  Am  ·  C  ·  D",
+    tab:"5|0---0---0---0---0---0---0---0-|\n1|--0-2-0---0-2-0---0-0-2---2-0-|\n2|0---0---0---0---0---0---0---0-|\n3|--0---0---2---0---0---0---0---|\n4|0---0---0---0---0---0---0---0-|",
+    tips:["Am chord gives the verses their earnest ache.", "Play with restraint — this song does not need to be loud.", "Keep the love stubborn and steady in every note."] },
+  { id:"lm4", title:"Cleopatra", artist:"The Lumineers", genre:"Folk", key:"G", capo:0, diff:"Intermediate", bpm:"80-95",
+    desc:"A devastating song about regret and roads not taken. Achingly beautiful.",
+    chords:"G  ·  Em  ·  C  ·  D",
+    tab:"5|0---0---0---0---0---0---0---0-|\n1|--0-0-2---0-2-0---2-0-2---0-2-|\n2|0---0---0---0---0---0---0---0-|\n3|--2---0---2---0---0---0---0---|\n4|0---0---0---0---0---0---0---0-|",
+    tips:["I was Cleopatra, I was young and an actress: G, Em, C, D.", "The Em chord holds the grief. Let it resolve slowly to C.", "Play gently — this song is about regret, not performance."] },
+  { id:"su1", title:"Mystery of Love", artist:"Sufjan Stevens", genre:"Folk", key:"G", capo:0, diff:"Intermediate", bpm:"70-85",
+    desc:"From Call Me By Your Name. Delicate, otherworldly, and deeply moving.",
+    chords:"G  ·  Em  ·  C  ·  D",
+    tab:"5|0---0---0---0---0---0---0---0-|\n1|--0-2-0---0-2-0---0-0-2---0-2-|\n2|0---0---0---0---0---0---0---0-|\n3|--0---0---2---0---0---0---2---|\n4|0---0---0---0---0---0---0---0-|",
+    tips:["Sufjan uses fingerpicked arpeggios — banjo roll is a perfect analog.", "The Em chord shimmers with longing. Hold it.", "This song is about pure feeling. Let every note mean something."] },
+  { id:"su2", title:"Futile Devices", artist:"Sufjan Stevens", genre:"Folk", key:"G", capo:0, diff:"Beginner", bpm:"60-75",
+    desc:"Minimalist and achingly tender. One of Sufjans most intimate songs.",
+    chords:"G  ·  D  ·  C",
+    tab:"5|0---0---0---0---0---0---0---0-|\n1|--0-2-0---0-0-0---2-0-0---0-0-|\n2|0---0---0---0---0---0---0---0-|\n3|--0---0---2---0---0---0---0---|\n4|0---0---0---0---0---0---0---0-|",
+    tips:["Almost nothing happens musically — which is the whole point.", "Three chords, infinite tenderness. G to D to C and back.", "Play as quietly as you possibly can. Then quieter still."] },
+  { id:"ff1", title:"White Winter Hymnal", artist:"Fleet Foxes", genre:"Folk", key:"Am", capo:0, diff:"Intermediate", bpm:"85-105",
+    desc:"Cascading, canonic, hypnotic. One of indie folks most beloved songs.",
+    chords:"Am  ·  F  ·  C  ·  G",
+    tab:"5|0---0---0---0---0---0---0---0-|\n1|--0-2-0---1-2-0---0-2-0---0-2-|\n2|0---0---0---0---0---0---0---0-|\n3|--2---0---0---0---0---0---2---|\n4|0---0---3---0---3---0---0---0-|",
+    tips:["The round-like melody builds and overlaps — let it breathe.", "F chord: barre fret 1. The move from Am to F is golden.", "I was following the: Am / F / C / G cycling forward."] },
+  { id:"ff2", title:"Mykonos", artist:"Fleet Foxes", genre:"Folk", key:"G", capo:0, diff:"Intermediate", bpm:"75-90",
+    desc:"Layered, oceanic, epic in scope. Fleet Foxes most soaring moment.",
+    chords:"G  ·  D  ·  Am  ·  C",
+    tab:"5|0---0---0---0---0---0---0---0-|\n1|--0-2-0---2-0-0---0-2-0---0-0-|\n2|0---0---0---0---0---0---0---0-|\n3|--0---0---2---0---0---0---2---|\n4|0---0---0---0---0---0---0---0-|",
+    tips:["The descending G-D-Am-C gives a sense of journeying somewhere vast.", "Let the 5th string drone ring against all the chords.", "Build from a whisper to a roar as the song opens up."] },
+  { id:"ce1", title:"Danny Boy", artist:"Traditional Irish", genre:"Celtic", key:"G", capo:0, diff:"Intermediate", bpm:"55-75",
+    desc:"The most beautiful Irish ballad ever written. Pure emotion on banjo.",
+    chords:"G  ·  C  ·  D  ·  Em",
+    tab:"5|0---0---0---0---0---0---0---0-|\n1|--0-2-4---4-2-0---2-4-4---2-0-|\n2|0---0---0---0---0---0---0---0-|\n3|--0---0---0---0---0---0---0---|\n4|0---0---0---0---0---0---0---0-|",
+    tips:["Fret 4 on 1st string is essential — the melody demands it.", "Play with an Irish lilt. The phrase ends should breathe.", "The middle section climbs and aches — follow it up the neck."] },
+  { id:"ce2", title:"The Wild Rover", artist:"Traditional Irish", genre:"Celtic", key:"G", capo:0, diff:"Beginner", bpm:"90-120",
+    desc:"The great Irish pub anthem. Raucous, joyful, and completely irresistible.",
+    chords:"G  ·  C  ·  D",
+    tab:"5|0---0---0---0---0---0---0---0-|\n1|--0-2-0---0-2-0---2-0-0---2-0-|\n2|0---0---0---0---0---0---0---0-|\n3|--0---0---2---0---0---0---0---|\n4|0---0---0---0---0---0---0---0-|",
+    tips:["AND IT'S NO NAY NEVER — stomp the offbeat with your foot!", "Simple three-chord anthem. Strum the chorus hard and joyfully.", "Speed up as the song builds. Get the whole room singing."] },
+  { id:"ce3", title:"Whiskey in the Jar", artist:"Traditional Irish", genre:"Celtic", key:"G", capo:0, diff:"Beginner", bpm:"85-105",
+    desc:"Ancient Irish highwayman ballad. Driving, rhythmic, and endlessly singable.",
+    chords:"G  ·  D  ·  Em  ·  C",
+    tab:"5|0---0---0---0---0---0---0---0-|\n1|--0-2-0---2-0-0---0-2-0---0-2-|\n2|0---0---0---0---0---0---0---0-|\n3|--0---0---2---0---2---0---0---|\n4|0---0---0---0---0---0---0---0-|",
+    tips:["G to D to Em to C — the Irish rock progression.", "The Em gives the story its danger and betrayal.", "Metallica covered this — your banjo version is better."] },
+  { id:"ce4", title:"Greensleeves", artist:"Traditional English", genre:"Celtic", key:"Am", capo:0, diff:"Intermediate", bpm:"55-70",
+    desc:"Centuries-old melody of longing and loss. Heartbreaking on banjo.",
+    chords:"Am  ·  G  ·  C  ·  E  ·  F",
+    tab:"3/4 waltz time:\n5|0---0---0---0---0---0-|\n1|--2-0-4---4-2-2---2-0-|\n2|0---0---0---0---0---0-|\n3|--2---0---0---0---2---|\n4|0---0---0---0---0---0-|",
+    tips:["3/4 time: one-two-three, one-two-three. Count it.", "E chord adds a Renaissance quality: 2nd fret on strings 1, 2, 3.", "Fret 4 on 1st string is the melodic peak — make it shine."] },
+  { id:"ce5", title:"The Water Is Wide", artist:"Traditional", genre:"Celtic", key:"G", capo:0, diff:"Beginner", bpm:"60-75",
+    desc:"A Scottish/Irish ballad of impossible love. Simplicity and beauty combined.",
+    chords:"G  ·  Em  ·  C  ·  D",
+    tab:"5|0---0---0---0---0---0---0---0-|\n1|--0-2-0---0-2-0---0-0-2---0-0-|\n2|0---0---0---0---0---0---0---0-|\n3|--0---0---2---0---0---0---0---|\n4|0---0---0---0---0---0---0---0-|",
+    tips:["Play as if floating. This melody should never feel rushed.", "Em deepens the sense of longing and separation.", "One of the most purely beautiful melodies ever written."] },
+  { id:"ce6", title:"Molly Malone", artist:"Traditional Irish", genre:"Celtic", key:"G", capo:0, diff:"Beginner", bpm:"70-90",
+    desc:"Dublins unofficial anthem. A haunting tale of a street vendor and her ghost.",
+    chords:"G  ·  D  ·  Am  ·  C",
+    tab:"3/4 waltz time:\n5|0---0---0---0---0---0-|\n1|--0-2-0---0-2-4---2-0-|\n2|0---0---0---0---0---0-|\n3|--0---0---2---0---0---|\n4|0---0---0---0---0---0-|",
+    tips:["In Dublins fair city: G waltz all the way through.", "The 3/4 time gives her cart a rolling, cobblestone feel.", "The final verse when she becomes a ghost: play more softly."] },
+  { id:"ap1", title:"Tom Dooley", artist:"Kingston Trio", genre:"Appalachian", key:"G", capo:0, diff:"Beginner", bpm:"70-90",
+    desc:"A real North Carolina murder ballad from 1866. Dark, inevitable, simple.",
+    chords:"G  ·  D",
+    tab:"5|0---0---0---0---0---0---0---0-|\n1|--0-0-0---0-0-2---0-0-0---0-0-|\n2|0---0---0---0---0---0---0---0-|\n3|--0---0---0---0---0---0---0---|\n4|0---0---0---0---0---0---0---0-|",
+    tips:["Only two chords: G and D. The simplicity IS the point.", "Hang down your head, Tom Dooley: the melody is the plea.", "Play with the fatalism of someone who knows the ending."] },
+  { id:"ap2", title:"Banks of the Ohio", artist:"Traditional", genre:"Appalachian", key:"G", capo:0, diff:"Beginner", bpm:"75-95",
+    desc:"Another dark Appalachian murder ballad. Tender melody, horrifying story.",
+    chords:"G  ·  C  ·  D",
+    tab:"5|0---0---0---0---0---0---0---0-|\n1|--0-2-0---2-0-2---0-2-0---0-2-|\n2|0---0---0---0---0---0---0---0-|\n3|--0---0---2---0---0---0---0---|\n4|0---0---0---0---0---0---0---0-|",
+    tips:["The melody is tender and sweet — deeply ironic given the story.", "Three simple chords carrying an ancient American darkness.", "I asked my love, to take a walk: slow and serious."] },
+  { id:"ap3", title:"Barbry Allen", artist:"Traditional", genre:"Appalachian", key:"Am", capo:0, diff:"Intermediate", bpm:"55-70",
+    desc:"Perhaps the oldest English-language folk song still in common use. Heartbreaking.",
+    chords:"Am  ·  G  ·  C",
+    tab:"5|0---0---0---0---0---0---0---0-|\n1|--3-2-0---0-2-3---2-0-0---3-2-|\n2|0---0---0---0---0---0---0---0-|\n3|--2---0---2---0---0---0---2---|\n4|0---0---0---0---0---0---0---0-|",
+    tips:["Dorian mode like Shady Grove — ancient and modal.", "The melody has survived 400 years. Treat it with respect.", "Play slowly. Let each syllable have its own weight."] },
+  { id:"ap4", title:"In the Pines", artist:"Traditional / Lead Belly", genre:"Appalachian", key:"G", capo:0, diff:"Intermediate", bpm:"70-90",
+    desc:"Where Did You Sleep Last Night — dark, hypnotic, endless dread.",
+    chords:"G  ·  D  ·  C  ·  Em",
+    tab:"5|0---0---0---0---0---0---0---0-|\n1|--0-0-2---2-0-0---0-2-0---2-2-|\n2|0---0---0---0---0---0---0---0-|\n3|--0---0---0---0---2---0---0---|\n4|0---0---0---0---0---0---0---0-|",
+    tips:["Nirvana covered this on MTV Unplugged — the banjo version cuts deeper.", "The Em chord at the end of the phrase creates unresolved dread.", "The long cold winter: let the 5th string drone freeze the air."] },
+  { id:"if1", title:"Fast Car", artist:"Tracy Chapman", genre:"Folk", key:"G", capo:2, diff:"Intermediate", bpm:"90-110",
+    desc:"Chapmanns breakthrough song. Capo 2 for her D key. Urgency and hope combined.",
+    chords:"G (=D)  ·  D (=A)  ·  Em (=Bm)  ·  C (=G)  capo shapes",
+    tab:"Capo 2 — iconic intro pattern:\n5|0---0---0---0---0---0---0---0-|\n1|--2-2-0---0-0-0---2-2-0---0-0-|\n2|0---0---0---0---0---0---0---0-|\n3|--0---0---0---0---0---0---0---|\n4|0---0---0---0---0---0---0---0-|",
+    tips:["The G-D-Em-C loop never stops. It IS the engine of the song.", "Capo 2 matches Chapmans urgency. Keep the roll moving.", "You got a fast car: on banjo this line becomes a propulsion."] },
+  { id:"if2", title:"Budapest", artist:"George Ezra", genre:"Folk", key:"G", capo:0, diff:"Beginner", bpm:"90-105",
+    desc:"Sun-drenched, generous, and instantly joyful. Banjo fits it perfectly.",
+    chords:"G  ·  C  ·  D",
+    tab:"5|0---0---0---0---0---0---0---0-|\n1|--2-0-0---0-0-0---2-0-0---0-2-|\n2|0---0---0---0---0---0---0---0-|\n3|--0---0---2---0---0---0---0---|\n4|0---0---0---0---0---0---0---0-|",
+    tips:["Simple three chords with maximum warmth. G to C to D.", "My house in Budapest: strum the words big and wide.", "One of the most generous melodies in modern folk. Play it as such."] },
+  { id:"if3", title:"Skinny Love", artist:"Bon Iver", genre:"Folk", key:"G", capo:5, diff:"Intermediate", bpm:"75-90",
+    desc:"Bon Ivers raw, anguished debut. Capo 5 for the open-tuned feel Justin Vernon used.",
+    chords:"G shapes at capo 5",
+    tab:"Capo 5 — spare arpeggiated feel:\n5|0---0---0---0---0---0---0---0-|\n1|--0-2-0---0-2-0---0-2-0---0-0-|\n2|0---0---0---0---0---0---0---0-|\n3|--0---0---0---0---0---0---0---|\n4|0---0---0---0---0---0---0---0-|",
+    tips:["Vernon recorded this alone in a cabin in winter. Channel that.", "Capo 5 creates the tense, wound-up tonality of the original.", "Come on skinny love: let every note ache."] },
+  { id:"if4", title:"Flightless Bird", artist:"Iron & Wine", genre:"Folk", key:"G", capo:0, diff:"Intermediate", bpm:"65-80",
+    desc:"From Twilight but forgive it that. Iron and Wine at their most delicate.",
+    chords:"G  ·  Em  ·  D  ·  C",
+    tab:"5|0---0---0---0---0---0---0---0-|\n1|--0-2-0---0-2-0---2-0-2---0-2-|\n2|0---0---0---0---0---0---0---0-|\n3|--0---0---2---0---0---0---0---|\n4|0---0---0---0---0---0---0---0-|",
+    tips:["Sam Beams whispered delivery: play as if no one should hear you.", "Em gives the verses their suspended, hovering quality.", "The banjo arpeggio suits this better than any guitar could."] },
+  { id:"if5", title:"Falling Slowly", artist:"Glen Hansard / Marketa Irglova", genre:"Folk", key:"G", capo:0, diff:"Intermediate", bpm:"70-85",
+    desc:"Once soundtrack winner. One of the most affecting love songs of its era.",
+    chords:"G  ·  C  ·  Am  ·  F",
+    tab:"5|0---0---0---0---0---0---0---0-|\n1|--0-2-0---0-0-2---0-2-0---1-0-|\n2|0---0---0---0---0---0---0---0-|\n3|--0---0---0---0---2---0---0---|\n4|0---0---0---0---0---0---0---0-|",
+    tips:["I dont know you but I want you: G / C / Am / F loop.", "F chord: barre fret 1 on strings 1 and 2. Worth mastering.", "Play this song as if you mean every single word of it."] },
+  { id:"ls1", title:"You Are My Sunshine", artist:"Traditional", genre:"Country", key:"G", capo:0, diff:"Beginner", bpm:"85-105",
+    desc:"One of the most recorded songs in history. Warm, joyful, bittersweet.",
+    chords:"G  ·  C  ·  D",
+    tab:"5|0---0---0---0---0---0---0---0-|\n1|--2-2-0---0-2-2---4-2-0---0-0-|\n2|0---0---0---0---0---0---0---0-|\n3|--0---0---0---0---0---2---0---|\n4|0---0---0---0---0---0---0---0-|",
+    tips:["Fret 4 on the 1st string at sunshine — the melodic peak!", "The C chord adds warmth. G is home, C is love.", "You make me happy when skies are grey: make the banjo smile."] },
+  { id:"ls2", title:"Let Her Go", artist:"Passenger", genre:"Folk", key:"G", capo:0, diff:"Beginner", bpm:"90-110",
+    desc:"One of the biggest folk hits of the 2010s. Deceptively simple, deeply felt.",
+    chords:"G  ·  D  ·  Em  ·  C",
+    tab:"5|0---0---0---0---0---0---0---0-|\n1|--0-2-2---2-0-0---0-2-2---0-2-|\n2|0---0---0---0---0---0---0---0-|\n3|--0---0---2---0---2---0---0---|\n4|0---0---0---0---0---0---0---0-|",
+    tips:["Well you only need the light when its burning low: G, D, Em, C.", "The Em chord carries all the regret. Stay there a moment.", "Great song for singing solo with your banjo in a quiet room."] },
+  { id:"ls3", title:"Helplessly Hoping", artist:"CSNY", genre:"Folk", key:"G", capo:0, diff:"Intermediate", bpm:"75-90",
+    desc:"One of the great fingerpicked guitar songs — banjo arpeggios suit it perfectly.",
+    chords:"G  ·  Am  ·  C  ·  D",
+    tab:"5|0---0---0---0---0---0---0---0-|\n1|--0-2-0---0-2-0---0-0-2---2-0-|\n2|0---0---0---0---0---0---0---0-|\n3|--0---0---2---0---0---0---0---|\n4|0---0---0---0---0---0---0---0-|",
+    tips:["Helplessly hoping her harlequin hovers: G / Am / C / D.", "Stills guitar arpeggios map beautifully to banjo rolls.", "Am gives the song its wistful, unresolved longing."] },
+  { id:"pr1", title:"We Shall Overcome", artist:"Traditional", genre:"Folk", key:"G", capo:0, diff:"Beginner", bpm:"50-65",
+    desc:"The civil rights anthem. Simple, dignified, and eternally powerful.",
+    chords:"G  ·  C  ·  D  ·  Em",
+    tab:"5|0---0---0---0---0---0---0---0-|\n1|--0-2-4---4-2-0---0-2-0---0-2-|\n2|0---0---0---0---0---0---0---0-|\n3|--0---0---0---0---2---0---0---|\n4|0---0---0---0---0---0---0---0-|",
+    tips:["Play slowly and with total conviction. This song earns its weight.", "The rising 0-2-4 on the 1st string mirrors the rise of hope.", "Hold each chord a little longer than feels comfortable. Let it settle."] },
+  { id:"pr2", title:"Which Side Are You On", artist:"Florence Reece", genre:"Folk", key:"G", capo:0, diff:"Beginner", bpm:"80-100",
+    desc:"1931 coal miners strike song. Defiant, rhythmic, and endlessly urgent.",
+    chords:"G  ·  C  ·  D7",
+    tab:"5|0---0---0---0---0---0---0---0-|\n1|--0-0-2---2-0-2---0-0-0---2-0-|\n2|0---0---0---0---0---0---0---0-|\n3|--0---0---0---0---0---0---0---|\n4|0---0---0---0---0---0---0---0-|",
+    tips:["Stomp your foot on the beat. This is a workers march.", "Written by a coal miners wife hiding from company thugs.", "Which side are you on? Make the banjo answer the question."] },
 ];
 
-const GENRES_FILTER = ["All","Bluegrass","Folk","Country","Rock"];
+const GENRES_FILTER = ["All","Bluegrass","Folk","Country","Rock","Celtic","Appalachian"];
 const DIFFS_FILTER  = ["All","Beginner","Intermediate","Advanced"];
 
 function SongsView({ completedSongs, completeSONG, cloudSongs }) {
   const allSongs = React.useMemo(() => {
-    if (!cloudSongs || cloudSongs.length === 0) return SONG_LIBRARY;
+    if (!cloudSongs || !cloudSongs.length) return SONG_LIBRARY;
     const base = SONG_LIBRARY.filter(s => !cloudSongs.find(c => c.id === s.id));
     return [...base, ...cloudSongs];
   }, [cloudSongs]);
@@ -1366,23 +1627,28 @@ function SongsView({ completedSongs, completeSONG, cloudSongs }) {
   const [search, setSearch] = useState("");
   const [active, setActive] = useState(null);
   const hasCloud = cloudSongs && cloudSongs.length > 0;
+  const diffColor = d => d==="Beginner"?C.teal:d==="Intermediate"?C.amber:C.red;
 
   const filtered = allSongs.filter(s => {
-    if (genreF !== "All" && s.genre !== genreF) return false;
-    if (diffF  !== "All" && s.diff  !== diffF)  return false;
+    if (genreF!=="All" && s.genre!==genreF) return false;
+    if (diffF !=="All" && s.diff !==diffF)  return false;
     if (search && !s.title.toLowerCase().includes(search.toLowerCase()) &&
         !s.artist.toLowerCase().includes(search.toLowerCase())) return false;
     return true;
   });
-  const diffColor = d => d === "Beginner" ? C.teal : d === "Intermediate" ? C.amber : C.red;
+
+  const renderTab = (tab) => {
+    if (!tab) return "Tab coming soon...";
+    return tab.replace(/\n/g,"\n");
+  };
 
   return (
     <div className="animate-up">
       <div style={{ fontFamily:"'Rye',serif", color:C.gold, fontSize:20, marginBottom:4 }}>
-        \ud83c\udfb5 Song Library
+        🎵 Song Library
       </div>
       <div style={{ fontFamily:"'Rajdhani',sans-serif", color:C.muted, fontSize:13, marginBottom:16 }}>
-        {allSongs.length} songs · {completedSongs.length} learned{hasCloud ? " · ✨ Cloud updated" : ""} · tap any card for the lesson
+        {allSongs.length} songs · {completedSongs.length} learned{hasCloud?" · ✨ Cloud updated":""} · tap any card for the full lesson
       </div>
       <input value={search} onChange={e=>setSearch(e.target.value)}
         placeholder="Search songs or artists..."
@@ -1391,22 +1657,22 @@ function SongsView({ completedSongs, completeSONG, cloudSongs }) {
           fontFamily:"'Rajdhani',sans-serif", fontSize:15, outline:"none" }}
         onFocus={e=>e.target.style.borderColor=C.gold}
         onBlur={e=>e.target.style.borderColor=C.border} />
-      <div style={{ display:"flex", gap:7, marginBottom:8, overflowX:"auto", paddingBottom:2 }}>
+      <div style={{ display:"flex", gap:6, marginBottom:8, overflowX:"auto", paddingBottom:2 }}>
         {GENRES_FILTER.map(g=>(
           <button key={g} onClick={()=>setGenreF(g)} style={{
             background:genreF===g?C.gold:C.card, border:`1px solid ${genreF===g?C.gold:C.border}`,
-            color:genreF===g?"#090C1A":C.muted, borderRadius:20, padding:"5px 13px",
-            fontFamily:"'Rajdhani',sans-serif", fontWeight:700, fontSize:12,
+            color:genreF===g?"#090C1A":C.muted, borderRadius:20, padding:"5px 12px",
+            fontFamily:"'Rajdhani',sans-serif", fontWeight:700, fontSize:11,
             cursor:"pointer", flexShrink:0, whiteSpace:"nowrap" }}>{g}</button>
         ))}
       </div>
-      <div style={{ display:"flex", gap:7, marginBottom:14, overflowX:"auto", paddingBottom:2 }}>
+      <div style={{ display:"flex", gap:6, marginBottom:14, overflowX:"auto", paddingBottom:2 }}>
         {DIFFS_FILTER.map(d=>(
           <button key={d} onClick={()=>setDiffF(d)} style={{
             background:diffF===d?(d==="All"?C.gold:diffColor(d)):C.card,
             border:`1px solid ${diffF===d?(d==="All"?C.gold:diffColor(d)):C.border}`,
-            color:diffF===d?"#090C1A":C.muted, borderRadius:20, padding:"5px 13px",
-            fontFamily:"'Rajdhani',sans-serif", fontWeight:700, fontSize:12,
+            color:diffF===d?"#090C1A":C.muted, borderRadius:20, padding:"5px 12px",
+            fontFamily:"'Rajdhani',sans-serif", fontWeight:700, fontSize:11,
             cursor:"pointer", flexShrink:0, whiteSpace:"nowrap" }}>{d}</button>
         ))}
       </div>
@@ -1416,52 +1682,51 @@ function SongsView({ completedSongs, completeSONG, cloudSongs }) {
           display:"flex", alignItems:"flex-end", justifyContent:"center" }}
           onClick={()=>setActive(null)}>
           <div style={{ background:C.card, borderTop:`2px solid ${C.gold}88`,
-            borderRadius:"18px 18px 0 0", padding:"22px 18px 36px",
-            width:"100%", maxWidth:560, maxHeight:"88vh", overflowY:"auto",
+            borderRadius:"18px 18px 0 0", padding:"20px 16px 34px",
+            width:"100%", maxWidth:560, maxHeight:"90vh", overflowY:"auto",
             animation:"slide-up 0.28s ease" }}
             onClick={e=>e.stopPropagation()}>
-            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:14 }}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:12 }}>
               <div>
-                <div style={{ fontFamily:"'Rye',serif", fontSize:19, color:C.gold, marginBottom:3 }}>{active.title}</div>
+                <div style={{ fontFamily:"'Rye',serif", fontSize:18, color:C.gold, marginBottom:2 }}>{active.title}</div>
                 <div style={{ fontFamily:"'Rajdhani',sans-serif", color:C.muted, fontSize:14 }}>{active.artist}</div>
               </div>
               <button onClick={()=>setActive(null)}
                 style={{ background:"none", border:"none", color:C.muted, fontSize:22, cursor:"pointer" }}>✕</button>
             </div>
-            <div style={{ display:"flex", gap:8, marginBottom:14, flexWrap:"wrap" }}>
+            <div style={{ display:"flex", gap:7, marginBottom:12, flexWrap:"wrap" }}>
               {[{label:active.genre,color:C.gold},{label:active.diff,color:diffColor(active.diff)},
                 {label:"Key "+active.key,color:C.teal},
                 {label:active.capo>0?"Capo "+active.capo:"No Capo",color:C.orange},
-                {label:"\u2669 "+active.bpm+" BPM",color:C.muted}].map(t=>(
+                {label:"♩ "+active.bpm+" BPM",color:C.muted}].map(t=>(
                 <span key={t.label} style={{ background:`${t.color}18`, border:`1px solid ${t.color}44`,
                   color:t.color, borderRadius:20, padding:"3px 10px",
                   fontFamily:"'Rajdhani',sans-serif", fontSize:11, fontWeight:700 }}>{t.label}</span>
               ))}
             </div>
-            <div style={{ fontFamily:"'Rajdhani',sans-serif", color:C.text, fontSize:15, lineHeight:1.6, marginBottom:14 }}>
+            <div style={{ fontFamily:"'Rajdhani',sans-serif", color:C.text, fontSize:15, lineHeight:1.6, marginBottom:12 }}>
               {active.desc}
             </div>
             <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:10,
-              padding:"12px 14px", marginBottom:14 }}>
+              padding:"10px 14px", marginBottom:12 }}>
               <div style={{ fontFamily:"'Rajdhani',sans-serif", color:C.muted, fontSize:10,
-                fontWeight:700, letterSpacing:"0.1em", marginBottom:6 }}>CHORD PROGRESSION</div>
-              <div style={{ fontFamily:"monospace", color:C.gold, fontSize:15 }}>{active.chords}</div>
+                fontWeight:700, letterSpacing:"0.1em", marginBottom:5 }}>CHORD PROGRESSION</div>
+              <div style={{ fontFamily:"monospace", color:C.gold, fontSize:14 }}>{active.chords}</div>
             </div>
-            <div style={{ background:"#070A17", border:`1px solid ${C.gold}33`, borderRadius:10,
-              padding:"14px 12px", marginBottom:14, overflowX:"auto" }}>
+            <div style={{ background:"#060810", border:`1px solid ${C.gold}33`, borderRadius:10,
+              padding:"12px 12px", marginBottom:12, overflowX:"auto" }}>
               <div style={{ fontFamily:"'Rajdhani',sans-serif", color:C.muted, fontSize:10,
-                fontWeight:700, letterSpacing:"0.1em", marginBottom:8 }}>TABLATURE (Open G tuning)</div>
-              <pre style={{ fontFamily:"monospace", fontSize:12, color:C.gold,
-                lineHeight:1.9, margin:0, whiteSpace:"pre" }}>{active.tab.split("\\n").join("\n")}</pre>
+                fontWeight:700, letterSpacing:"0.1em", marginBottom:7 }}>TABLATURE (Open G · gDGBD)</div>
+              <pre style={{ fontFamily:"monospace", fontSize:11, color:C.gold,
+                lineHeight:2, margin:0, whiteSpace:"pre" }}>{renderTab(active.tab)}</pre>
             </div>
-            <div style={{ marginBottom:20 }}>
+            <div style={{ marginBottom:18 }}>
               <div style={{ fontFamily:"'Rajdhani',sans-serif", color:C.muted, fontSize:10,
-                fontWeight:700, letterSpacing:"0.1em", marginBottom:10 }}>PRO TIPS</div>
-              {active.tips.map((tip,i)=>(
-                <div key={i} style={{ display:"flex", gap:10, alignItems:"flex-start", marginBottom:9 }}>
-                  <span style={{ color:C.gold, fontSize:13, marginTop:2, flexShrink:0 }}>◆</span>
-                  <span style={{ fontFamily:"'Rajdhani',sans-serif", color:C.text,
-                    fontSize:14, lineHeight:1.5 }}>{tip}</span>
+                fontWeight:700, letterSpacing:"0.1em", marginBottom:8 }}>PRO TIPS</div>
+              {(active.tips||[]).map((tip,i)=>(
+                <div key={i} style={{ display:"flex", gap:10, alignItems:"flex-start", marginBottom:8 }}>
+                  <span style={{ color:C.gold, fontSize:12, marginTop:2, flexShrink:0 }}>◆</span>
+                  <span style={{ fontFamily:"'Rajdhani',sans-serif", color:C.text, fontSize:14, lineHeight:1.5 }}>{tip}</span>
                 </div>
               ))}
             </div>
@@ -1469,18 +1734,16 @@ function SongsView({ completedSongs, completeSONG, cloudSongs }) {
               onClick={()=>{ completeSONG(active); setActive(null); }}
               style={{ width:"100%",
                 background:completedSongs.includes(active.id)?C.dim:C.gold,
-                border:"none", color:"#090C1A", borderRadius:12, padding:"14px",
-                fontFamily:"'Rajdhani',sans-serif", fontWeight:700, fontSize:16,
+                border:"none", color:"#090C1A", borderRadius:12, padding:"13px",
+                fontFamily:"'Rajdhani',sans-serif", fontWeight:700, fontSize:15,
                 cursor:completedSongs.includes(active.id)?"default":"pointer" }}>
-              {completedSongs.includes(active.id)
-                ? "\u2713 Song Learned (+25 XP earned)"
-                : "Mark as Learned (+25 XP)"}
+              {completedSongs.includes(active.id)?"✓ Song Learned (+25 XP earned)":"Mark as Learned (+25 XP)"}
             </button>
           </div>
         </div>
       )}
 
-      <div style={{ fontFamily:"'Rajdhani',sans-serif", color:C.muted, fontSize:12, marginBottom:12 }}>
+      <div style={{ fontFamily:"'Rajdhani',sans-serif", color:C.muted, fontSize:12, marginBottom:10 }}>
         Showing {filtered.length} of {allSongs.length} songs
       </div>
       <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
@@ -1489,23 +1752,21 @@ function SongsView({ completedSongs, completeSONG, cloudSongs }) {
           return (
             <div key={s.id} className="card-hover" onClick={()=>setActive(s)} style={{
               background:C.card, border:`1px solid ${done?C.gold+"66":C.border}`,
-              borderRadius:12, padding:"13px 12px", cursor:"pointer", position:"relative" }}>
+              borderRadius:12, padding:"12px 11px", cursor:"pointer", position:"relative" }}>
               {done && <div style={{ position:"absolute", top:8, right:8, width:18, height:18,
                 borderRadius:"50%", background:C.gold, display:"flex", alignItems:"center",
                 justifyContent:"center", fontSize:10, color:"#090C1A", fontWeight:900 }}>✓</div>}
               <div style={{ fontFamily:"'Rajdhani',sans-serif", fontWeight:700, color:C.gold,
                 fontSize:13, marginBottom:2, paddingRight:done?22:0, lineHeight:1.3 }}>{s.title}</div>
-              <div style={{ fontFamily:"'Rajdhani',sans-serif", color:C.muted,
-                fontSize:11, marginBottom:8 }}>{s.artist}</div>
+              <div style={{ fontFamily:"'Rajdhani',sans-serif", color:C.muted, fontSize:11, marginBottom:7 }}>{s.artist}</div>
               <div style={{ display:"flex", gap:5, flexWrap:"wrap" }}>
-                <span style={{ background:`${diffColor(s.diff)}18`,
-                  border:`1px solid ${diffColor(s.diff)}44`, color:diffColor(s.diff),
-                  borderRadius:10, padding:"2px 7px",
+                <span style={{ background:`${diffColor(s.diff)}18`, border:`1px solid ${diffColor(s.diff)}44`,
+                  color:diffColor(s.diff), borderRadius:10, padding:"2px 7px",
                   fontFamily:"'Rajdhani',sans-serif", fontSize:10, fontWeight:700 }}>{s.diff}</span>
                 <span style={{ background:`${C.gold}11`, border:`1px solid ${C.gold}33`,
                   color:C.muted, borderRadius:10, padding:"2px 7px",
                   fontFamily:"'Rajdhani',sans-serif", fontSize:10 }}>
-                  Key {s.key}{s.capo>0?" · Capo "+s.capo:""}
+                  {s.key}{s.capo>0?" · C"+s.capo:""}
                 </span>
               </div>
             </div>
@@ -1637,7 +1898,6 @@ function BanjoApp() {
   }, [completedLessons, addXp]);
 
 
-  // Complete a song and award XP
   const completeSONG = useCallback((song) => {
     setCompletedSongs(prev => {
       if (prev.includes(song.id)) return prev;
@@ -1647,7 +1907,6 @@ function BanjoApp() {
     });
   }, [completedLessons, completedTechniques, addXp]);
 
-  // Tab history for Android back button
   const tabHistory = useRef(["home"]);
   const handleTabChange = useCallback((t) => {
     if (t !== tab) tabHistory.current.push(t);
@@ -1662,7 +1921,6 @@ function BanjoApp() {
     return () => { delete window.banjoGoBack; };
   }, []);
 
-  // Cloud songs fetch
   useEffect(() => {
     fetch("https://raw.githubusercontent.com/dcheshirecat/BanjoQuest/main/songs.json")
       .then(r => r.ok ? r.json() : null).catch(() => null)
