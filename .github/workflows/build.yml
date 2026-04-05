@@ -61,8 +61,14 @@ jobs:
                   webView.loadUrl("file:///android_asset/index.html");
               }
               @Override public void onBackPressed() {
-                  if (webView.canGoBack()) webView.goBack();
-                  else super.onBackPressed();
+                  webView.evaluateJavascript(
+                    "typeof window.banjoGoBack === 'function' ? window.banjoGoBack() : false",
+                    result -> {
+                      if ("false".equals(result) || result == null) {
+                        super.onBackPressed();
+                      }
+                    }
+                  );
               }
           }
           JAVA
