@@ -1,0 +1,1808 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#090C1A">
+  <title>BanjoQuest</title>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; background: #090C1A; overflow: hidden; }
+    #root { height: 100vh; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script>
+    window.storage = {
+      async get(key) {
+        try { const v = localStorage.getItem('bq_'+key); return v!==null?{key,value:v}:null; }
+        catch { return null; }
+      },
+      async set(key, value) {
+        try { localStorage.setItem('bq_'+key, value); return {key,value}; }
+        catch { return null; }
+      },
+      async delete(key) {
+        try { localStorage.removeItem('bq_'+key); return {key,deleted:true}; }
+        catch { return null; }
+      },
+      async list(prefix) {
+        try {
+          const keys = Object.keys(localStorage)
+            .filter(k=>k.startsWith('bq_')&&(!prefix||k.startsWith('bq_'+prefix)))
+            .map(k=>k.slice(3));
+          return {keys};
+        } catch { return {keys:[]}; }
+      }
+    };
+</script>
+  <script type="text/babel">
+    const { useState, useEffect, useRef, useCallback } = React;
+
+
+// ─────────────────────────────────────────────
+// DATA
+// ─────────────────────────────────────────────
+const STRINGS = [
+  { id: 0, label: "5th (g)", note: "G4", baseFreq: 392.0,  color: "#FFD700" },
+  { id: 1, label: "1st (d)", note: "D4", baseFreq: 293.66, color: "#FFA040" },
+  { id: 2, label: "2nd (B)", note: "B3", baseFreq: 246.94, color: "#FF6B35" },
+  { id: 3, label: "3rd (G)", note: "G3", baseFreq: 196.0,  color: "#E84855" },
+  { id: 4, label: "4th (D)", note: "D3", baseFreq: 146.83, color: "#A83255" },
+];
+
+const LESSONS = [
+  {
+    id:"l1", title:"Meet Your Banjo", icon:"🪕", xp:40, diff:"Beginner",
+    color:"#FFB800",
+    desc:"Discover the anatomy of the 5-string banjo and how to hold it.",
+    steps:[
+      "The 5-string banjo has a circular drum head (resonator or open-back) that produces its bright, punchy sound.",
+      "The 5 strings from thickest to thinnest: 4th (D3), 3rd (G3), 2nd (B3), 1st (D4), and the short 5th string (G4).",
+      "The 5th string is unique — it starts at the 5th fret peg and only plays from that position up. It acts as a high drone.",
+      "Standard tuning is Open G: gDGBD. Strum all open strings and you hear a G major chord!",
+      "Hold the banjo with the drum head against your body, neck angling slightly upward. Relax your picking arm over the head.",
+    ]
+  },
+  {
+    id:"l2", title:"Open G Tuning", icon:"🎵", xp:50, diff:"Beginner",
+    color:"#FF9500",
+    desc:"Tune all 5 strings to Open G (gDGBD) — the foundation of bluegrass banjo.",
+    steps:[
+      "Open G tuning (gDGBD): strum all strings open and hear a G major chord. Magic!",
+      "String 4 → D3 (147 Hz). String 3 → G3 (196 Hz). String 2 → B3 (247 Hz). String 1 → D4 (294 Hz). String 5 → G4 (392 Hz).",
+      "Use the interactive fretboard in this app to hear each open string — tap the 'O' column to sound any string.",
+      "The 5th string is tuned a full octave above the 3rd string, both to G. This octave relationship is key.",
+      "Keep a tuner app handy. Banjos go out of tune often, especially new ones. Tune every time you play!",
+    ]
+  },
+  {
+    id:"l3", title:"Right Hand Basics", icon:"✋", xp:60, diff:"Beginner",
+    color:"#FF6B35",
+    desc:"Master the three-finger picking technique with thumb (T), index (I), and middle (M).",
+    steps:[
+      "Bluegrass banjo uses three-finger picking with metal fingerpicks on index & middle, and a plastic thumbpick.",
+      "Your thumb (T) is responsible for strings 3, 4, and 5. Index (I) covers string 2. Middle (M) covers string 1.",
+      "Rest your ring and pinky fingers lightly on the drum head for an anchor — this gives you control and consistency.",
+      "Start with a 'pinch': pluck the 5th string (thumb) and 1st string (middle) at the exact same time. This is the building block of rolls.",
+      "Practice: T - I - M - T - I - M slowly. Say the letters out loud while you play. Even, unhurried, one note at a time.",
+    ]
+  },
+  {
+    id:"l4", title:"The Forward Roll", icon:"🔄", xp:80, diff:"Beginner",
+    color:"#E84855",
+    desc:"The heartbeat of bluegrass banjo. Master the forward roll and you unlock everything.",
+    steps:[
+      "The forward roll pattern: T-I-M, repeated. On your strings: 5-2-1, 5-2-1, 5-2-1, 5-2-1 (8 notes per measure).",
+      "In tablature notation: 5th string, then 2nd string, then 1st string. Over and over like a wheel turning.",
+      "Start at 60 BPM on a metronome. Do not speed up until every note is perfectly even and clean.",
+      "Every note should have the same volume. No accents, no rushing. Pure, even, flowing forward motion.",
+      "The magic: while your right hand rolls, your left hand can fret notes to create melodies within the roll. This is Scruggs style!",
+    ]
+  },
+  {
+    id:"l5", title:"Hammer-ons", icon:"🔨", xp:70, diff:"Beginner",
+    color:"#9B59B6",
+    desc:"Add melody notes without extra picks — hammer your fretting finger down onto the string.",
+    steps:[
+      "A hammer-on: pick an open string (or lower fret), then forcefully press a finger onto a higher fret. The note sounds without picking again.",
+      "In tab notation: 0h2 means pick the open string, then hammer the 2nd fret. The 'h' stands for hammer.",
+      "Force is key — slam your fingertip firmly down onto the fret wire (not behind it). A weak hammer sounds dead.",
+      "Practice on the 3rd string: pick open G, then hammer fret 2 (A). You should hear a clear, ringing A note.",
+      "Hammer-ons let you play melody notes 'inside' your rolls without breaking the rolling rhythm. Essential skill!",
+    ]
+  },
+  {
+    id:"l6", title:"Slides", icon:"🎢", xp:70, diff:"Intermediate",
+    color:"#27AE60",
+    desc:"Slide between frets for that signature bluegrass 'glide' that makes the banjo sing.",
+    steps:[
+      "A slide: fret a note, pick it, then glide your fretting finger up or down to another fret while keeping pressure on the string.",
+      "Tab notation: 2/4 = slide UP from 2nd to 4th fret. 4\\2 = slide DOWN from 4th to 2nd fret.",
+      "Maintain firm, even pressure throughout the slide. The pitch should transition smoothly — no dead spots.",
+      "Most common slide: on the 3rd string, slide from fret 2 (A) up to fret 4 (B). This appears in hundreds of bluegrass songs.",
+      "Slides can replace picks in a roll: where you'd normally pick a note, let a slide into that note instead. Glorious.",
+    ]
+  },
+  {
+    id:"l7", title:"Cripple Creek", icon:"🎶", xp:120, diff:"Beginner",
+    color:"#3498DB",
+    desc:"Your first complete song! Every banjo player learns this. Short, joyful, and instantly satisfying.",
+    steps:[
+      "Cripple Creek is in G major — perfect for open G tuning. The whole melody lives on your 1st and 2nd strings.",
+      "A-Part (play twice): On the 1st string — fret 2, fret 2, open, fret 2, open, open. Wrap a forward roll underneath each beat.",
+      "B-Part (play twice): A descending run starting on the 1st string fret 2, sliding to the 2nd string, then the open 3rd string.",
+      "Structure: AABB. A-part twice, then B-part twice. The whole thing loops. Start at 60 BPM.",
+      "Once you can play it clean at 60 BPM, push to 80. At 100 BPM it starts to groove like a real bluegrass tune!",
+    ]
+  },
+  {
+    id:"l8", title:"Pull-offs", icon:"👆", xp:75, diff:"Intermediate",
+    color:"#F39C12",
+    desc:"The reverse of a hammer-on — snap your finger sideways off the string to sound the note below.",
+    steps:[
+      "Fret two adjacent notes simultaneously (e.g., open and 2nd fret on the same string). Pick the higher one, then snap your finger sideways off the string.",
+      "Tab notation: 2p0 = fret 2, pick it, pull off to open string. The 'p' stands for pull-off.",
+      "The crucial detail: snap SIDEWAYS (toward your palm), not straight up. Lifting straight up just mutes. The sideways snap re-plucks the string.",
+      "Practice on the 1st string: hold fret 2 with your middle finger AND prepare open position with a ready finger. Pick, snap, hear the open D.",
+      "Pull-offs are the secret to fast bluegrass passages — they let you play two notes for the price of one pick.",
+    ]
+  },
+];
+
+const TECHNIQUES = [
+  {
+    id:"t1", title:"Forward Roll", icon:"⏩", color:"#FFB800",
+    pattern:"T · I · M", strings:"5th · 2nd · 1st",
+    desc:"The most fundamental bluegrass roll. A cascading, perpetual-motion sound that defines Scruggs style.",
+    tips:["Thumb owns strings 3, 4, 5. Index owns 2. Middle owns 1.", "Practice at 60 BPM. Speed is a reward for accuracy.", "Keep all notes equally loud — rolling, not accenting."]
+  },
+  {
+    id:"t2", title:"Backward Roll", icon:"⏪", color:"#FF6B35",
+    pattern:"M · I · T", strings:"1st · 2nd · 5th",
+    desc:"Mirror of the forward roll. Creates a reverse-waterfall feel often used for descending melody lines.",
+    tips:["Start with middle on 1st string, thumb on 5th", "Great for backup playing behind singers", "Combine with forward roll for variety in a song"]
+  },
+  {
+    id:"t3", title:"Alternating Thumb", icon:"🔃", color:"#4ECDC4",
+    pattern:"T · I · T · M", strings:"5th · 2nd · 3rd · 1st",
+    desc:"Thumb walks between 5th and 3rd strings creating a bass-line feel under your finger rolls.",
+    tips:["Think of it as walking bass + melody simultaneously", "Great for slow songs and ballads", "The alternating bass gives the feel of two players at once"]
+  },
+  {
+    id:"t4", title:"Scruggs Lick", icon:"⭐", color:"#9B59B6",
+    pattern:"Special ending", strings:"5th · 2nd · 1st · 2nd",
+    desc:"Earl Scruggs' signature phrase — the most recognizable lick in all of banjo. Ends almost every phrase.",
+    tips:["Slight accent on the opening 5th string note", "Appears constantly in Foggy Mountain Breakdown", "Once learned, you'll hear it everywhere in bluegrass"]
+  },
+  {
+    id:"t5", title:"String Bends", icon:"🎸", color:"#E74C3C",
+    pattern:"Push sideways", strings:"1st or 2nd string",
+    desc:"Push a fretted string sideways to raise the pitch, then release. Adds country blues expression and emotion.",
+    tips:["Bend fret 2 on 1st string up a whole step (two frets' worth)", "Support the bending finger with fingers behind it", "Use sparingly — one tasteful bend beats ten sloppy ones"]
+  },
+  {
+    id:"t6", title:"Melodic Style", icon:"🎼", color:"#27AE60",
+    pattern:"Scale across strings", strings:"All strings",
+    desc:"Play scale notes across all five strings — no string repeated consecutively. Creates fiddle-tune-style single-note melodies.",
+    tips:["Each melody note falls under a different pick finger", "Bill Keith pioneered this in the 1960s", "Unlocks virtually any fiddle tune on the banjo"]
+  },
+  {
+    id:"t7", title:"Capo Technique", icon:"🗜️", color:"#F39C12",
+    pattern:"Transpose keys", strings:"All strings",
+    desc:"A capo raises all strings simultaneously, letting you play Open G shapes in any key.",
+    tips:["Capo 2 = A major (very common for fiddle tunes)", "Capo 5 = C major (great for old-time music)", "5th string needs a separate spike/capo at fret 7 when using capo 2"]
+  },
+  {
+    id:"t8", title:"Single String", icon:"1️⃣", color:"#3498DB",
+    pattern:"Alternate T · I", strings:"One string at a time",
+    desc:"Play melody on one string alternating thumb-index — more like flatpicking. Fast, precise, and note-for-note accurate.",
+    tips:["Don't roll — strictly alternate thumb and index", "Eddie Adcock popularized this approach", "Great for playing fiddle tunes note-for-note"]
+  },
+];
+
+const DAILY_CHALLENGES = [
+  { text: "Practice the Forward Roll for 10 min at 80 BPM", icon: "🔄", xp: 25 },
+  { text: "Play Cripple Creek A-part 5 times in a row cleanly", icon: "🎶", xp: 30 },
+  { text: "Hammer-on drill: 0h2 on every string, 3 sets each", icon: "🔨", xp: 20 },
+  { text: "Tune your banjo by ear using harmonics", icon: "🎵", xp: 15 },
+  { text: "Practice the Alternating Thumb roll at 70 BPM for 5 min", icon: "🔃", xp: 25 },
+  { text: "Play a G major scale using melodic style, ascending & descending", icon: "🎼", xp: 30 },
+  { text: "Slide drill: 2/4 on 3rd string, 20 clean reps each direction", icon: "🎢", xp: 20 },
+  { text: "Chord transitions: G → C → D7 → G, 10 smooth times", icon: "🪕", xp: 25 },
+];
+
+const ACHIEVEMENTS = [
+  { id: "first_lesson", title: "First Strum", desc: "Complete your first lesson", icon: "🌟", req: (cl) => cl.length >= 1 },
+  { id: "five_lessons",  title: "On a Roll",   desc: "Complete 5 lessons",        icon: "🎯", req: (cl) => cl.length >= 5 },
+  { id: "all_lessons",  title: "Banjo Master", desc: "Complete all lessons",      icon: "👑", req: (cl) => cl.length >= 8 },
+  { id: "level5",       title: "Level 5",      desc: "Reach level 5",            icon: "⚡", req: (_, l) => l >= 5 },
+  { id: "technique5",   title: "Technician",   desc: "Learn 5 techniques",       icon: "🎸", req: (_, __, ct) => ct.length >= 5 },
+];
+
+// ─────────────────────────────────────────────
+// STYLES
+// ─────────────────────────────────────────────
+const C = {
+  bg:     "#090C1A",
+  surface:"#0F1328",
+  card:   "#141829",
+  border: "#1E2540",
+  gold:   "#FFB800",
+  amber:  "#FF8C00",
+  orange: "#FF6B35",
+  red:    "#E84855",
+  teal:   "#4ECDC4",
+  text:   "#EDE4D0",
+  muted:  "#6B7194",
+  dim:    "#3A3F5C",
+};
+
+const globalCSS = `
+  @import url('https://fonts.googleapis.com/css2?family=Rye&family=Rajdhani:wght@400;500;600;700&display=swap');
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  ::-webkit-scrollbar { width: 5px; }
+  ::-webkit-scrollbar-track { background: ${C.surface}; }
+  ::-webkit-scrollbar-thumb { background: ${C.gold}55; border-radius: 3px; }
+
+  @keyframes glow-pulse {
+    0%,100% { box-shadow: 0 0 8px ${C.gold}60; }
+    50%      { box-shadow: 0 0 22px ${C.gold}, 0 0 40px ${C.amber}60; }
+  }
+  @keyframes flame {
+    0%,100% { transform: scaleY(1) rotate(-3deg); }
+    50%      { transform: scaleY(1.15) rotate(3deg); }
+  }
+  @keyframes slide-up {
+    from { opacity: 0; transform: translateY(16px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes pop {
+    0%   { transform: scale(0.8); opacity: 0; }
+    70%  { transform: scale(1.05); }
+    100% { transform: scale(1); opacity: 1; }
+  }
+  @keyframes xp-grow {
+    from { width: 0%; }
+  }
+  @keyframes string-ping {
+    0%   { opacity: 1; transform: scaleX(1); }
+    50%  { opacity: 0.6; transform: scaleX(1.02) scaleY(2); }
+    100% { opacity: 1; transform: scaleX(1); }
+  }
+  @keyframes shimmer {
+    0%   { background-position: -200% center; }
+    100% { background-position: 200% center; }
+  }
+  .card-hover { transition: transform 0.18s ease, box-shadow 0.18s ease; cursor: pointer; }
+  .card-hover:hover { transform: translateY(-3px); box-shadow: 0 8px 30px ${C.gold}22 !important; }
+  .fret-btn { transition: all 0.1s ease; }
+  .fret-btn:hover { background: ${C.gold}30 !important; transform: scale(1.08); cursor: pointer; }
+  .nav-tab { transition: all 0.15s ease; }
+  .nav-tab:hover { color: ${C.gold} !important; }
+  .btn-primary { transition: all 0.15s ease; }
+  .btn-primary:hover { filter: brightness(1.15); transform: translateY(-1px); }
+  .animate-up { animation: slide-up 0.35s ease both; }
+  .animate-pop { animation: pop 0.3s ease both; }
+`;
+
+// ─────────────────────────────────────────────
+// FRETBOARD
+// ─────────────────────────────────────────────
+function Fretboard({ activeFret, onFret, numFrets = 8 }) {
+  const frets = Array.from({ length: numFrets }, (_, i) => i);
+  const noteNames = ["O","1","2","3","4","5","6","7","8","9","10","11","12"];
+  const markers = [3, 5, 7];
+
+  return (
+    <div style={{ overflowX: "auto", paddingBottom: 4 }}>
+      <div style={{
+        background: "linear-gradient(180deg, #2A1A08 0%, #3D2510 50%, #2A1A08 100%)",
+        border: `2px solid ${C.gold}44`,
+        borderRadius: 12,
+        padding: "12px 8px",
+        minWidth: 420,
+        position: "relative",
+      }}>
+        {/* Fret number row */}
+        <div style={{ display: "flex", marginBottom: 8, paddingLeft: 72 }}>
+          {frets.map(f => (
+            <div key={f} style={{
+              flex: f === 0 ? "0 0 44px" : "1",
+              textAlign: "center",
+              fontSize: 10,
+              color: markers.includes(f) ? C.gold : C.muted,
+              fontFamily: "'Rajdhani', sans-serif",
+              fontWeight: 600,
+            }}>
+              {markers.includes(f) ? "◆" : noteNames[f]}
+            </div>
+          ))}
+        </div>
+
+        {/* String rows */}
+        {STRINGS.map((str, si) => (
+          <div key={si} style={{ display: "flex", alignItems: "center", marginBottom: si < STRINGS.length - 1 ? 6 : 0, position: "relative" }}>
+            {/* String label */}
+            <div style={{
+              width: 70, flexShrink: 0,
+              fontSize: 11, color: str.color,
+              fontFamily: "'Rajdhani', sans-serif",
+              fontWeight: 700, textAlign: "right", paddingRight: 10,
+              letterSpacing: "0.02em",
+            }}>
+              {str.label}
+            </div>
+
+            {/* String line + fret cells */}
+            <div style={{ flex: 1, position: "relative", display: "flex", alignItems: "center" }}>
+              {/* The string line */}
+              <div style={{
+                position: "absolute", left: 0, right: 0, top: "50%",
+                height: si < 2 ? 1 : si < 4 ? 1.5 : 2,
+                background: `linear-gradient(90deg, ${str.color}88, ${str.color}cc, ${str.color}88)`,
+                transform: "translateY(-50%)",
+                zIndex: 0,
+                ...(activeFret?.string === si ? { animation: "string-ping 0.4s ease" } : {}),
+              }} />
+
+              {/* Fret cells */}
+              {frets.map(f => {
+                const isActive = activeFret?.string === si && activeFret?.fret === f;
+                const isOpen = f === 0;
+                return (
+                  <div
+                    key={f}
+                    className="fret-btn"
+                    onClick={() => onFret(si, f)}
+                    style={{
+                      flex: isOpen ? "0 0 44px" : "1",
+                      height: 30,
+                      zIndex: 1,
+                      position: "relative",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      borderRight: !isOpen ? `1px solid ${C.dim}` : "none",
+                      borderLeft: isOpen ? "none" : undefined,
+                      background: isActive
+                        ? `${str.color}55`
+                        : "transparent",
+                      borderRadius: isActive ? 6 : 0,
+                    }}
+                  >
+                    {isActive ? (
+                      <div style={{
+                        width: 18, height: 18,
+                        borderRadius: "50%",
+                        background: str.color,
+                        boxShadow: `0 0 10px ${str.color}, 0 0 20px ${str.color}88`,
+                        animation: "pop 0.2s ease",
+                      }} />
+                    ) : (
+                      <div style={{
+                        width: isOpen ? 20 : 14,
+                        height: isOpen ? 20 : 14,
+                        borderRadius: "50%",
+                        border: `1.5px solid ${str.color}55`,
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        fontSize: 9, color: str.color,
+                        fontFamily: "'Rajdhani', sans-serif",
+                        fontWeight: 700,
+                      }}>
+                        {isOpen ? "O" : ""}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+
+        <div style={{ textAlign: "center", marginTop: 10, fontSize: 11, color: C.muted, fontFamily: "'Rajdhani', sans-serif" }}>
+          Tap any dot to hear the note · Open G tuning (gDGBD)
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
+// HOME VIEW
+// ─────────────────────────────────────────────
+function HomeView({ level, xp, streak, completedLessons, completedTechniques, dailyChallenge, onTabChange }) {
+  const xpForLevel = (l) => l * 150;
+  const xpProgress = xp % xpForLevel(level);
+  const xpNeeded = xpForLevel(level);
+  const pct = Math.min(100, (xpProgress / xpNeeded) * 100);
+  const unlocked = ACHIEVEMENTS.filter(a => a.req(completedLessons, level, completedTechniques));
+
+  return (
+    <div className="animate-up" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+
+      {/* Hero banner */}
+      <div style={{
+        background: `radial-gradient(ellipse at 30% 50%, #1A1200 0%, ${C.surface} 70%)`,
+        border: `1px solid ${C.gold}44`,
+        borderRadius: 16,
+        padding: "24px 28px",
+        position: "relative",
+        overflow: "hidden",
+      }}>
+        <div style={{
+          position: "absolute", top: -20, right: -20,
+          fontSize: 120, opacity: 0.06, lineHeight: 1,
+          pointerEvents: "none",
+        }}>🪕</div>
+        <div style={{ fontFamily: "'Rye', serif", fontSize: 28, color: C.gold, letterSpacing: "0.04em", marginBottom: 4 }}>
+          BanjoQuest
+        </div>
+        <div style={{ fontFamily: "'Rajdhani', sans-serif", color: C.muted, fontSize: 15, marginBottom: 20 }}>
+          Your 5-string bluegrass adventure begins here
+        </div>
+
+        {/* Level + XP */}
+        <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 14 }}>
+          <div style={{
+            width: 52, height: 52, borderRadius: "50%",
+            background: `conic-gradient(${C.gold} ${pct * 3.6}deg, ${C.dim} 0deg)`,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            animation: "glow-pulse 2.5s ease infinite",
+          }}>
+            <div style={{
+              width: 40, height: 40, borderRadius: "50%",
+              background: C.bg,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontFamily: "'Rye', serif", fontSize: 14, color: C.gold,
+            }}>
+              {level}
+            </div>
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5 }}>
+              <span style={{ fontFamily: "'Rajdhani', sans-serif", fontWeight: 700, color: C.text, fontSize: 14 }}>
+                Level {level} — {xpProgress} / {xpNeeded} XP
+              </span>
+              <span style={{ fontFamily: "'Rajdhani', sans-serif", color: C.gold, fontSize: 13, fontWeight: 600 }}>
+                {Math.round(pct)}%
+              </span>
+            </div>
+            <div style={{ height: 8, background: C.dim, borderRadius: 4, overflow: "hidden" }}>
+              <div style={{
+                height: "100%", borderRadius: 4, width: `${pct}%`,
+                background: `linear-gradient(90deg, ${C.amber}, ${C.gold})`,
+                transition: "width 0.6s ease",
+                boxShadow: `0 0 8px ${C.gold}`,
+              }} />
+            </div>
+          </div>
+        </div>
+
+        {/* Stats row */}
+        <div style={{ display: "flex", gap: 12 }}>
+          {[
+            { label: "Lessons Done", val: completedLessons.length, max: LESSONS.length, color: C.gold },
+            { label: "Techniques", val: completedTechniques.length, max: TECHNIQUES.length, color: C.teal },
+            { label: "Day Streak", val: streak, max: null, color: C.orange },
+          ].map(s => (
+            <div key={s.label} style={{
+              flex: 1, background: C.card, borderRadius: 10,
+              padding: "10px 12px", border: `1px solid ${C.border}`,
+              textAlign: "center",
+            }}>
+              <div style={{ fontFamily: "'Rye', serif", fontSize: 22, color: s.color }}>
+                {s.val}{s.max ? `/${s.max}` : ""}
+              </div>
+              <div style={{ fontFamily: "'Rajdhani', sans-serif", fontSize: 11, color: C.muted, marginTop: 2 }}>
+                {s.label}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Daily Challenge */}
+      <div style={{
+        background: C.card, border: `1px solid ${C.gold}55`,
+        borderRadius: 14, padding: "18px 20px",
+        animation: "glow-pulse 3s ease infinite",
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+          <span style={{ fontSize: 22 }}>{dailyChallenge.icon}</span>
+          <div style={{ fontFamily: "'Rye', serif", fontSize: 15, color: C.gold }}>
+            Daily Challenge
+          </div>
+          <div style={{
+            marginLeft: "auto", background: `${C.gold}22`,
+            border: `1px solid ${C.gold}44`, borderRadius: 20,
+            padding: "2px 10px", fontSize: 11,
+            color: C.gold, fontFamily: "'Rajdhani', sans-serif", fontWeight: 700,
+          }}>
+            +{dailyChallenge.xp} XP
+          </div>
+        </div>
+        <div style={{ fontFamily: "'Rajdhani', sans-serif", color: C.text, fontSize: 15, lineHeight: 1.5 }}>
+          {dailyChallenge.text}
+        </div>
+      </div>
+
+      {/* Quick Nav */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+        {[
+          { label: "Start Learning", sub: `${LESSONS.length - completedLessons.length} lessons left`, icon: "📚", tab: "learn", color: C.gold },
+          { label: "Techniques", sub: `${TECHNIQUES.length - completedTechniques.length} to explore`, icon: "✋", tab: "techniques", color: C.teal },
+          { label: "Song Library", sub: `${SONG_LIBRARY.length} songs · all genres`, icon: "🎵", tab: "songs", color: C.orange },
+          { label: "Fretboard", sub: "Tap to hear notes", icon: "🎵", tab: "learn", color: C.red },
+        ].map(btn => (
+          <div
+            key={btn.label}
+            className="card-hover"
+            onClick={() => onTabChange(btn.tab)}
+            style={{
+              background: C.card, border: `1px solid ${C.border}`,
+              borderRadius: 12, padding: "16px 14px", cursor: "pointer",
+            }}
+          >
+            <div style={{ fontSize: 26, marginBottom: 8 }}>{btn.icon}</div>
+            <div style={{ fontFamily: "'Rajdhani', sans-serif", fontWeight: 700, color: btn.color, fontSize: 15 }}>
+              {btn.label}
+            </div>
+            <div style={{ fontFamily: "'Rajdhani', sans-serif", color: C.muted, fontSize: 12, marginTop: 2 }}>
+              {btn.sub}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Achievements */}
+      {unlocked.length > 0 && (
+        <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: "16px 20px" }}>
+          <div style={{ fontFamily: "'Rye', serif", color: C.gold, fontSize: 15, marginBottom: 12 }}>🏆 Achievements</div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
+            {unlocked.map(a => (
+              <div key={a.id} className="animate-pop" style={{
+                background: `${C.gold}15`, border: `1px solid ${C.gold}44`,
+                borderRadius: 10, padding: "8px 12px", display: "flex", alignItems: "center", gap: 8,
+              }}>
+                <span style={{ fontSize: 20 }}>{a.icon}</span>
+                <div>
+                  <div style={{ fontFamily: "'Rajdhani', sans-serif", fontWeight: 700, color: C.gold, fontSize: 13 }}>{a.title}</div>
+                  <div style={{ fontFamily: "'Rajdhani', sans-serif", color: C.muted, fontSize: 11 }}>{a.desc}</div>
+                </div>
+              </div>
+            ))}
+            {ACHIEVEMENTS.filter(a => !a.req(completedLessons, level, completedTechniques)).map(a => (
+              <div key={a.id} style={{
+                background: C.surface, border: `1px solid ${C.border}`,
+                borderRadius: 10, padding: "8px 12px", display: "flex", alignItems: "center", gap: 8,
+                opacity: 0.45,
+              }}>
+                <span style={{ fontSize: 20, filter: "grayscale(1)" }}>{a.icon}</span>
+                <div>
+                  <div style={{ fontFamily: "'Rajdhani', sans-serif", fontWeight: 700, color: C.muted, fontSize: 13 }}>???</div>
+                  <div style={{ fontFamily: "'Rajdhani', sans-serif", color: C.muted, fontSize: 11 }}>{a.desc}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
+// LESSON TOOLS
+// ─────────────────────────────────────────────
+const LESSON_HINTS = {
+  "l3": {
+    0: { note:"Listen to the roll rhythm: even, steady, relaxed.", rolls:null, frets:null },
+    1: { note:"Thumb owns strings 4,3,5 · Index owns string 2 · Middle owns string 1", rolls:"T · I · M", frets:null },
+    2: { note:"Rest ring and pinky on the drum head. Feel the anchor point.", rolls:null, frets:null },
+    3: { note:"Pinch drill: pluck 5th and 1st string at the exact same time — 10 reps!", rolls:"T+M", frets:[{s:0,f:0},{s:1,f:0}] },
+    4: { note:"Forward roll: T · I · M repeated. Try it slowly with the metronome.", rolls:"T · I · M", frets:null },
+  },
+  "l4": {
+    0: { note:"Forward roll: 5th string, then 2nd, then 1st. Repeat forever.", rolls:"T · I · M", frets:[{s:0,f:0},{s:2,f:0},{s:1,f:0}] },
+    1: { note:"In tab: string 5 then 2 then 1. Over and over like a wheel.", rolls:"T · I · M", frets:[{s:0,f:0},{s:2,f:0},{s:1,f:0}] },
+    2: { note:"Start slow! Set the metronome to 60 BPM and build from there.", rolls:"T · I · M", frets:null },
+    3: { note:"Every note the same volume. No accents. Pure even flow.", rolls:"T · I · M", frets:[{s:0,f:0},{s:2,f:0},{s:1,f:0}] },
+    4: { note:"While right hand rolls, left hand frets the melody. Magic!", rolls:"T · I · M", frets:null },
+  },
+  "l5": {
+    0: { note:"Hammer-on: pick an open string, then slam a finger on a higher fret.", rolls:null, frets:[{s:3,f:0},{s:3,f:2}] },
+    1: { note:"Tab reads 0h2: pick open (0), then hammer fret 2.", rolls:null, frets:[{s:3,f:0},{s:3,f:2}] },
+    2: { note:"FORCE is key. A weak hammer sounds dead. Really slam it down!", rolls:null, frets:[{s:3,f:2}] },
+    3: { note:"Practice on 3rd string: open G, hammer fret 2 (A). Clean and clear!", rolls:null, frets:[{s:3,f:0},{s:3,f:2}] },
+    4: { note:"Hammer-ons flow inside rolls: two notes for the price of one pick.", rolls:"T · I · M", frets:[{s:3,f:0},{s:3,f:2}] },
+  },
+  "l6": {
+    0: { note:"Slide: fret a note, pick it, then glide your finger to another fret.", rolls:null, frets:[{s:3,f:2},{s:3,f:4}] },
+    1: { note:"Tab: 2/4 means slide up from fret 2 to 4.", rolls:null, frets:[{s:3,f:2},{s:3,f:4}] },
+    2: { note:"Keep firm even pressure throughout. No dead spots in the glide!", rolls:null, frets:[{s:3,f:2},{s:3,f:4}] },
+    3: { note:"Most common slide: 3rd string, fret 2 slide to fret 4 (A to B).", rolls:null, frets:[{s:3,f:2},{s:3,f:4}] },
+    4: { note:"Slides replace picks in a roll — they create a beautiful glide.", rolls:"T · I · M", frets:[{s:3,f:2},{s:3,f:4}] },
+  },
+  "l7": {
+    0: { note:"Key of G, Open G tuning. The whole melody lives on the 1st string.", rolls:null, frets:[{s:1,f:0},{s:1,f:2}] },
+    1: { note:"A-Part melody on 1st string: fret 2, 2, open, 2, open, open.", rolls:"T · I · M", frets:[{s:1,f:2},{s:1,f:0}] },
+    2: { note:"B-Part: descend from 1st string fret 2 down to open 3rd string.", rolls:"T · I · M", frets:[{s:1,f:2},{s:2,f:0},{s:3,f:0}] },
+    3: { note:"Structure: AABB. Play each part twice. Start at 60 BPM.", rolls:"T · I · M", frets:null },
+    4: { note:"At 100 BPM this groove feels like real bluegrass! Use the metronome.", rolls:"T · I · M", frets:null },
+  },
+  "l8": {
+    0: { note:"Pull-off: fret two notes, pick the higher one, snap sideways off the string.", rolls:null, frets:[{s:1,f:2},{s:1,f:0}] },
+    1: { note:"Tab: 2p0 means at fret 2, pick it, then pull off to open string.", rolls:null, frets:[{s:1,f:2},{s:1,f:0}] },
+    2: { note:"Snap SIDEWAYS toward your palm, NOT straight up. Sideways re-plucks the string!", rolls:null, frets:[{s:1,f:2},{s:1,f:0}] },
+    3: { note:"Practice: 1st string, hold fret 2, pick it, then snap sideways. Hear it?", rolls:null, frets:[{s:1,f:2},{s:1,f:0}] },
+    4: { note:"Pull-offs give you two notes per pick. That is how fast bluegrass works!", rolls:"T · I · M", frets:[{s:1,f:2},{s:1,f:0}] },
+  },
+};
+
+function LessonTools({ lesson, step, playNote }) {
+  const [bpm, setBpm] = useState(80);
+  const [metroOn, setMetroOn] = useState(false);
+  const [beat, setBeat] = useState(-1);
+  const [reps, setReps] = useState(0);
+  const metroRef = useRef(null);
+  const audioCtx = useRef(null);
+
+  const hints = (LESSON_HINTS[lesson.id] || {})[step] || null;
+  const rollLetters = hints && hints.rolls
+    ? hints.rolls.split(/[\s·]+/).filter(x => x.length > 0 && x !== "·")
+    : null;
+  const RCOL = { T:"#FFB800", I:"#4ECDC4", M:"#FF6B35", "T+M":"#E84855" };
+
+  const getCtx = () => {
+    if (!audioCtx.current) audioCtx.current = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.current.state === "suspended") audioCtx.current.resume();
+    return audioCtx.current;
+  };
+
+  const tick = useCallback((beatIndex, total) => {
+    try {
+      const ctx = getCtx();
+      const osc = ctx.createOscillator();
+      const g = ctx.createGain();
+      osc.connect(g); g.connect(ctx.destination);
+      osc.frequency.value = beatIndex % 4 === 0 ? 1100 : 800;
+      g.gain.setValueAtTime(0.25, ctx.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.06);
+      osc.start(); osc.stop(ctx.currentTime + 0.06);
+    } catch(e) {}
+  }, []);
+
+  const stopMetro = useCallback(() => {
+    if (metroRef.current) { clearInterval(metroRef.current); metroRef.current = null; }
+    setMetroOn(false); setBeat(-1);
+  }, []);
+
+  const startMetro = useCallback(() => {
+    stopMetro();
+    let b = 0;
+    const total = rollLetters ? rollLetters.length : 4;
+    tick(b, total); setBeat(b % total);
+    metroRef.current = setInterval(() => {
+      b++;
+      tick(b, total); setBeat(b % total);
+    }, Math.round(60000 / bpm));
+    setMetroOn(true);
+  }, [bpm, rollLetters, tick, stopMetro]);
+
+  useEffect(() => { if (metroOn) { stopMetro(); startMetro(); } }, [bpm]);
+  useEffect(() => { stopMetro(); setReps(0); }, [step, lesson.id]);
+  useEffect(() => () => stopMetro(), []);
+
+  if (!hints) return null;
+
+  return (
+    <div style={{ marginBottom:16 }}>
+      <div style={{ background:`${lesson.color}15`, border:`1px solid ${lesson.color}44`,
+        borderRadius:10, padding:"10px 14px", marginBottom:10,
+        fontFamily:"'Rajdhani',sans-serif", color:C.text, fontSize:14, lineHeight:1.5 }}>
+        {hints.note}
+      </div>
+
+      {rollLetters && (
+        <div style={{ background:C.surface, border:`1px solid ${C.border}`,
+          borderRadius:10, padding:"12px 14px", marginBottom:10 }}>
+          <div style={{ fontFamily:"'Rajdhani',sans-serif", color:C.muted,
+            fontSize:10, fontWeight:700, letterSpacing:"0.1em", marginBottom:10 }}>
+            PICKING PATTERN
+          </div>
+          <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" }}>
+            {rollLetters.map((letter, i) => {
+              const col = RCOL[letter] || C.gold;
+              const isActive = metroOn && beat === i;
+              return (
+                <div key={i} style={{
+                  width:40, height:40, borderRadius:8,
+                  background: isActive ? col : col+"22",
+                  border:`2px solid ${col}`,
+                  display:"flex", alignItems:"center", justifyContent:"center",
+                  fontFamily:"'Rye',serif", fontSize:15, color: isActive ? "#090C1A" : col,
+                  transition:"all 0.08s ease",
+                  transform: isActive ? "scale(1.2)" : "scale(1)",
+                  boxShadow: isActive ? `0 0 14px ${col}` : "none",
+                }}>{letter}</div>
+              );
+            })}
+            <span style={{ fontFamily:"'Rajdhani',sans-serif", color:C.muted, fontSize:11, marginLeft:4 }}>
+              → repeat
+            </span>
+          </div>
+        </div>
+      )}
+
+      {hints.frets && hints.frets.length > 0 && (
+        <div style={{ background:C.surface, border:`1px solid ${C.border}`,
+          borderRadius:10, padding:"10px 14px", marginBottom:10 }}>
+          <div style={{ fontFamily:"'Rajdhani',sans-serif", color:C.muted,
+            fontSize:10, fontWeight:700, letterSpacing:"0.1em", marginBottom:8 }}>FRET POSITIONS</div>
+          <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+            {hints.frets.map((fh, i) => {
+              const si = STRINGS[fh.s];
+              return (
+                <div key={i} style={{ background:`${si.color}18`,
+                  border:`1px solid ${si.color}55`, borderRadius:8,
+                  padding:"6px 12px", display:"flex", alignItems:"center", gap:8 }}>
+                  <div style={{ width:10, height:10, borderRadius:"50%",
+                    background:si.color, boxShadow:`0 0 6px ${si.color}` }} />
+                  <span style={{ fontFamily:"monospace", color:si.color, fontSize:13, fontWeight:700 }}>
+                    {si.label} · {fh.f === 0 ? "Open" : "Fret "+fh.f}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      <div style={{ display:"flex", gap:8, alignItems:"stretch" }}>
+        <div style={{ display:"flex", alignItems:"center", gap:6,
+          background:C.surface, border:`1px solid ${C.border}`,
+          borderRadius:10, padding:"6px 10px", flex:1 }}>
+          <button onClick={()=>setBpm(b=>Math.max(40,b-5))}
+            style={{ background:"none", border:"none", color:C.muted,
+              fontSize:20, cursor:"pointer", lineHeight:1, padding:"0 3px" }}>−</button>
+          <span style={{ fontFamily:"'Rajdhani',sans-serif", color:C.gold,
+            fontWeight:700, fontSize:15, flex:1, textAlign:"center" }}>{bpm} BPM</span>
+          <button onClick={()=>setBpm(b=>Math.min(220,b+5))}
+            style={{ background:"none", border:"none", color:C.muted,
+              fontSize:20, cursor:"pointer", lineHeight:1, padding:"0 3px" }}>+</button>
+        </div>
+        <button onClick={metroOn ? stopMetro : startMetro}
+          style={{ background:metroOn?lesson.color:C.surface,
+            border:`1px solid ${metroOn?lesson.color:C.border}`,
+            color:metroOn?"#090C1A":C.text, borderRadius:10, padding:"8px 14px",
+            fontFamily:"'Rajdhani',sans-serif", fontWeight:700, fontSize:13,
+            cursor:"pointer", flexShrink:0 }}>
+          {metroOn ? "⏹ Stop" : "\u25b6 Metro"}
+        </button>
+        <button onClick={()=>setReps(r=>r+1)}
+          style={{ background:C.surface, border:`1px solid ${C.border}`,
+            color:C.teal, borderRadius:10, padding:"8px 12px",
+            fontFamily:"'Rajdhani',sans-serif", fontWeight:700, fontSize:13,
+            cursor:"pointer", flexShrink:0, minWidth:52, textAlign:"center" }}
+          title="Tap to count practice reps">
+          {reps > 0 ? reps+"\u00d7" : "Rep"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
+// LEARN VIEW
+// ─────────────────────────────────────────────
+function LearnView({ lessons, completedLessons, activeLesson, setActiveLesson, completeLesson, activeFret, onFret, playNote }) {
+  const [step, setStep] = useState(0);
+
+  const open = (lesson) => { setActiveLesson(lesson); setStep(0); };
+  const close = () => setActiveLesson(null);
+
+  return (
+    <div className="animate-up">
+      {/* Fretboard always visible */}
+      <div style={{ marginBottom: 20 }}>
+        <div style={{ fontFamily: "'Rye', serif", color: C.gold, fontSize: 16, marginBottom: 10 }}>
+          🎵 Interactive Fretboard
+        </div>
+        <Fretboard activeFret={activeFret} onFret={onFret} />
+      </div>
+
+      <div style={{ fontFamily: "'Rye', serif", color: C.gold, fontSize: 16, marginBottom: 12 }}>
+        📚 Lessons ({completedLessons.length}/{lessons.length} complete)
+      </div>
+
+      {/* Lesson modal */}
+      {activeLesson && (
+        <div style={{
+          position: "fixed", inset: 0, background: "#00000099", zIndex: 100,
+          display: "flex", alignItems: "center", justifyContent: "center",
+          padding: 16,
+        }} onClick={close}>
+          <div style={{
+            background: C.card, border: `2px solid ${activeLesson.color}66`,
+            borderRadius: 18, padding: "24px 22px", maxWidth: 520, width: "100%",
+            boxShadow: `0 0 40px ${activeLesson.color}33`,
+            animation: "pop 0.25s ease",
+          }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
+              <div>
+                <div style={{ fontFamily: "'Rye', serif", fontSize: 20, color: activeLesson.color }}>
+                  {activeLesson.icon} {activeLesson.title}
+                </div>
+                <div style={{ fontFamily: "'Rajdhani', sans-serif", color: C.muted, fontSize: 13, marginTop: 4 }}>
+                  Step {step + 1} of {activeLesson.steps.length}
+                </div>
+              </div>
+              <button onClick={close} style={{ background: "none", border: "none", color: C.muted, fontSize: 22, cursor: "pointer", lineHeight: 1 }}>✕</button>
+            </div>
+
+            {/* Progress bar */}
+            <div style={{ height: 4, background: C.dim, borderRadius: 2, marginBottom: 20, overflow: "hidden" }}>
+              <div style={{
+                height: "100%", borderRadius: 2, transition: "width 0.4s ease",
+                width: `${((step + 1) / activeLesson.steps.length) * 100}%`,
+                background: activeLesson.color,
+                boxShadow: `0 0 6px ${activeLesson.color}`,
+              }} />
+            </div>
+
+            {/* Step content */}
+            <div style={{
+              background: C.surface, border: `1px solid ${C.border}`,
+              borderRadius: 12, padding: "18px 16px", minHeight: 100,
+              fontFamily: "'Rajdhani', sans-serif", fontSize: 16, color: C.text,
+              lineHeight: 1.65, marginBottom: 12,
+              animation: "slide-up 0.2s ease",
+            }}>
+              <span style={{ color: activeLesson.color, fontWeight: 700, marginRight: 8 }}>
+                {step + 1}.
+              </span>
+              {activeLesson.steps[step]}
+            </div>
+            <LessonTools lesson={activeLesson} step={step} playNote={playNote} />
+
+            {/* Navigation */}
+            <div style={{ display: "flex", gap: 10 }}>
+              {step > 0 && (
+                <button
+                  onClick={() => setStep(s => s - 1)}
+                  style={{
+                    flex: 1, background: C.surface, border: `1px solid ${C.border}`,
+                    color: C.text, borderRadius: 10, padding: "12px",
+                    fontFamily: "'Rajdhani', sans-serif", fontWeight: 700, fontSize: 14,
+                    cursor: "pointer",
+                  }}
+                >
+                  ← Back
+                </button>
+              )}
+              {step < activeLesson.steps.length - 1 ? (
+                <button
+                  className="btn-primary"
+                  onClick={() => setStep(s => s + 1)}
+                  style={{
+                    flex: 2, background: activeLesson.color, border: "none",
+                    color: "#0A0D1A", borderRadius: 10, padding: "12px",
+                    fontFamily: "'Rajdhani', sans-serif", fontWeight: 700, fontSize: 15,
+                    cursor: "pointer",
+                  }}
+                >
+                  Next →
+                </button>
+              ) : (
+                <button
+                  className="btn-primary"
+                  onClick={() => { completeLesson(activeLesson); close(); }}
+                  style={{
+                    flex: 2,
+                    background: completedLessons.includes(activeLesson.id)
+                      ? C.dim : activeLesson.color,
+                    border: "none", color: "#0A0D1A", borderRadius: 10, padding: "12px",
+                    fontFamily: "'Rajdhani', sans-serif", fontWeight: 700, fontSize: 15,
+                    cursor: completedLessons.includes(activeLesson.id) ? "default" : "pointer",
+                  }}
+                >
+                  {completedLessons.includes(activeLesson.id) ? "✓ Completed" : `✓ Complete (+${activeLesson.xp} XP)`}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Lesson grid */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+        {lessons.map((l, i) => {
+          const done = completedLessons.includes(l.id);
+          const locked = i > 0 && !completedLessons.includes(lessons[i - 1].id);
+          return (
+            <div
+              key={l.id}
+              className={locked ? "" : "card-hover"}
+              onClick={locked ? undefined : () => open(l)}
+              style={{
+                background: C.card, border: `1px solid ${done ? l.color + "88" : C.border}`,
+                borderRadius: 13, padding: "16px 14px",
+                opacity: locked ? 0.45 : 1,
+                cursor: locked ? "not-allowed" : "pointer",
+                position: "relative", overflow: "hidden",
+              }}
+            >
+              {done && (
+                <div style={{
+                  position: "absolute", top: 10, right: 10,
+                  width: 22, height: 22, borderRadius: "50%",
+                  background: l.color, display: "flex", alignItems: "center",
+                  justifyContent: "center", fontSize: 12, color: "#0A0D1A", fontWeight: 900,
+                }}>✓</div>
+              )}
+              {locked && (
+                <div style={{ position: "absolute", top: 10, right: 10, fontSize: 14 }}>🔒</div>
+              )}
+              <div style={{ fontSize: 26, marginBottom: 8 }}>{l.icon}</div>
+              <div style={{ fontFamily: "'Rajdhani', sans-serif", fontWeight: 700, color: l.color, fontSize: 15, marginBottom: 4 }}>
+                {l.title}
+              </div>
+              <div style={{ fontFamily: "'Rajdhani', sans-serif", color: C.muted, fontSize: 11, marginBottom: 8, lineHeight: 1.4 }}>
+                {l.desc}
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{
+                  fontFamily: "'Rajdhani', sans-serif", fontSize: 10, fontWeight: 700,
+                  color: l.diff === "Beginner" ? C.teal : C.amber,
+                  background: `${l.diff === "Beginner" ? C.teal : C.amber}15`,
+                  border: `1px solid ${l.diff === "Beginner" ? C.teal : C.amber}44`,
+                  padding: "2px 8px", borderRadius: 10,
+                }}>{l.diff}</span>
+                <span style={{ fontFamily: "'Rajdhani', sans-serif", color: l.color, fontSize: 12, fontWeight: 700 }}>
+                  +{l.xp} XP
+                </span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
+// TECHNIQUES VIEW
+// ─────────────────────────────────────────────
+function TechniquesView({ techniques, completedTechniques, activeTechnique, setActiveTechnique, completeTechnique, activeFret, onFret }) {
+  const close = () => setActiveTechnique(null);
+
+  return (
+    <div className="animate-up">
+      <div style={{ marginBottom: 20 }}>
+        <div style={{ fontFamily: "'Rye', serif", color: C.gold, fontSize: 16, marginBottom: 10 }}>
+          🎵 Practice Fretboard
+        </div>
+        <Fretboard activeFret={activeFret} onFret={onFret} />
+      </div>
+
+      <div style={{ fontFamily: "'Rye', serif", color: C.gold, fontSize: 16, marginBottom: 12 }}>
+        ✋ Technique Library ({completedTechniques.length}/{techniques.length} explored)
+      </div>
+
+      {/* Technique detail modal */}
+      {activeTechnique && (
+        <div style={{
+          position: "fixed", inset: 0, background: "#00000099", zIndex: 100,
+          display: "flex", alignItems: "center", justifyContent: "center", padding: 16,
+        }} onClick={close}>
+          <div style={{
+            background: C.card, border: `2px solid ${activeTechnique.color}66`,
+            borderRadius: 18, padding: "24px 22px", maxWidth: 500, width: "100%",
+            boxShadow: `0 0 40px ${activeTechnique.color}33`,
+            animation: "pop 0.25s ease",
+          }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
+              <div style={{ fontFamily: "'Rye', serif", fontSize: 20, color: activeTechnique.color }}>
+                {activeTechnique.icon} {activeTechnique.title}
+              </div>
+              <button onClick={close} style={{ background: "none", border: "none", color: C.muted, fontSize: 22, cursor: "pointer" }}>✕</button>
+            </div>
+
+            <div style={{ fontFamily: "'Rajdhani', sans-serif", color: C.text, fontSize: 15, lineHeight: 1.6, marginBottom: 16 }}>
+              {activeTechnique.desc}
+            </div>
+
+            {/* Pattern display */}
+            <div style={{
+              background: C.surface, border: `1px solid ${C.border}`,
+              borderRadius: 12, padding: "14px 16px", marginBottom: 16,
+            }}>
+              <div style={{ display: "flex", gap: 24 }}>
+                <div>
+                  <div style={{ fontFamily: "'Rajdhani', sans-serif", color: C.muted, fontSize: 11, marginBottom: 4, fontWeight: 700, letterSpacing: "0.08em" }}>PATTERN</div>
+                  <div style={{ fontFamily: "monospace", color: activeTechnique.color, fontSize: 18, fontWeight: 700, letterSpacing: "0.1em" }}>
+                    {activeTechnique.pattern}
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontFamily: "'Rajdhani', sans-serif", color: C.muted, fontSize: 11, marginBottom: 4, fontWeight: 700, letterSpacing: "0.08em" }}>STRINGS</div>
+                  <div style={{ fontFamily: "monospace", color: C.text, fontSize: 15, letterSpacing: "0.05em" }}>
+                    {activeTechnique.strings}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Tips */}
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ fontFamily: "'Rajdhani', sans-serif", color: C.muted, fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", marginBottom: 10 }}>PRO TIPS</div>
+              {activeTechnique.tips.map((tip, i) => (
+                <div key={i} style={{
+                  display: "flex", gap: 10, alignItems: "flex-start", marginBottom: 8,
+                }}>
+                  <span style={{ color: activeTechnique.color, fontSize: 14, marginTop: 2 }}>◆</span>
+                  <span style={{ fontFamily: "'Rajdhani', sans-serif", color: C.text, fontSize: 14, lineHeight: 1.5 }}>{tip}</span>
+                </div>
+              ))}
+            </div>
+
+            <button
+              className="btn-primary"
+              onClick={() => { completeTechnique(activeTechnique); close(); }}
+              style={{
+                width: "100%",
+                background: completedTechniques.includes(activeTechnique.id) ? C.dim : activeTechnique.color,
+                border: "none", color: "#0A0D1A", borderRadius: 10, padding: "13px",
+                fontFamily: "'Rajdhani', sans-serif", fontWeight: 700, fontSize: 15,
+                cursor: completedTechniques.includes(activeTechnique.id) ? "default" : "pointer",
+              }}
+            >
+              {completedTechniques.includes(activeTechnique.id) ? "✓ Explored (+30 XP earned)" : "Mark as Explored (+30 XP)"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Technique grid */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+        {techniques.map(t => {
+          const done = completedTechniques.includes(t.id);
+          return (
+            <div
+              key={t.id}
+              className="card-hover"
+              onClick={() => setActiveTechnique(t)}
+              style={{
+                background: C.card, border: `1px solid ${done ? t.color + "88" : C.border}`,
+                borderRadius: 13, padding: "16px 14px", cursor: "pointer", position: "relative",
+              }}
+            >
+              {done && (
+                <div style={{
+                  position: "absolute", top: 10, right: 10,
+                  width: 20, height: 20, borderRadius: "50%",
+                  background: t.color, display: "flex", alignItems: "center",
+                  justifyContent: "center", fontSize: 11, color: "#0A0D1A", fontWeight: 900,
+                }}>✓</div>
+              )}
+              <div style={{ fontSize: 26, marginBottom: 8 }}>{t.icon}</div>
+              <div style={{ fontFamily: "'Rajdhani', sans-serif", fontWeight: 700, color: t.color, fontSize: 14, marginBottom: 4 }}>
+                {t.title}
+              </div>
+              <div style={{ fontFamily: "monospace", color: C.muted, fontSize: 12, marginBottom: 6, letterSpacing: "0.05em" }}>
+                {t.pattern}
+              </div>
+              <div style={{ fontFamily: "'Rajdhani', sans-serif", color: C.muted, fontSize: 11, lineHeight: 1.4 }}>
+                {t.desc.slice(0, 70)}…
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
+// SONG LIBRARY + SONGS VIEW
+// ─────────────────────────────────────────────
+const SONG_LIBRARY = [
+  { id:"bg1", title:"Cripple Creek", artist:"Traditional", genre:"Bluegrass", key:"G", capo:0, diff:"Beginner", bpm:"90-130",
+    desc:"The very first tune every banjo player learns. Short, joyful, endlessly satisfying in Open G.",
+    chords:"G  ·  D7  ·  C",
+    tab:"5|0---0---0---0---0---0---0---0-|\n1|--2-2-0---2-0-0---2-2-0---2-0-|\n2|0---0---0---0---0---0---0---0-|\n3|--0---0---0---0---0---0---0---|\n4|0---0---0---0---0---0---0---0-|\n(A-part x2, B-part x2)",
+    tips:["Forward roll: 5th to 2nd to 1st throughout. Melody lives on 1st string.", "Structure: AABB. Play A twice, then B twice, then repeat.", "Capo 2 for key of A if playing with a fiddle."] },
+  { id:"bg2", title:"Foggy Mountain Breakdown", artist:"Flatt & Scruggs", genre:"Bluegrass", key:"G", capo:0, diff:"Advanced", bpm:"120-180",
+    desc:"Earl Scruggs masterpiece and the defining sound of bluegrass. The roll pattern IS the song.",
+    chords:"G  ·  Em  ·  C  ·  D",
+    tab:"Opening lick:\n5|0-0-0-0-0-0-0-0-0-0-0-0-|\n1|--0---0---2---0---2---2---|\n2|0---2---0---0---0---0---0-|\n3|--0---0---0---0---0---0---|\n4|0---0---0---0---0---0---0-|",
+    tips:["Start at 80 BPM. Speed is earned, never rushed.", "The famous lick: 5th open, 2nd fret 2, 1st open — repeat variations.", "Scruggs rolls create perpetual motion. Every 8th note must be even."] },
+  { id:"bg3", title:"Old Joe Clark", artist:"Traditional", genre:"Bluegrass", key:"A", capo:2, diff:"Beginner", bpm:"100-140",
+    desc:"A fiddle tune staple. Capo 2 puts you in A while playing G shapes.",
+    chords:"G (=A)  ·  F (=G)  in capo shapes",
+    tab:"A-Part:\n5|0---0---0---0---0---0---0---0-|\n1|--2-0-0---0-0-0---2-0-0---0-0-|\n2|0---0---0---0---0---0---0---0-|\n3|--0---2---0---0---0---2---0---|\n4|0---0---0---0---0---0---0---0-|",
+    tips:["With capo 2, all G-shape chords sound as A. Magic!", "The F chord: barre fret 1 on strings 1-3.", "B-part descends — follow the melody down strings 1 and 2."] },
+  { id:"bg4", title:"Boil Them Cabbage Down", artist:"Traditional", genre:"Bluegrass", key:"G", capo:0, diff:"Beginner", bpm:"80-120",
+    desc:"A perfect entry-level tune. Simple melody, strong rhythm, great even at slow tempos.",
+    chords:"G  ·  D7",
+    tab:"5|0---0---0---0---0---0---0---0-|\n1|--0-0-2---2-0-2---0-2-0---2-0-|\n2|0---0---0---0---0---0---0---0-|\n3|--0---0---0---0---0---0---0---|\n4|0---0---0---2---0---0---2---0-|",
+    tips:["Two chords only: G and D7. Perfect for building chord transition speed.", "Focus on keeping the roll even while your left hand changes chords.", "Great first song to sing along to. Very steady 4/4 pulse."] },
+  { id:"bg5", title:"Nine Pound Hammer", artist:"Traditional", genre:"Bluegrass", key:"G", capo:0, diff:"Beginner", bpm:"80-110",
+    desc:"A coal-mining work song turned bluegrass standard. Strong backbeat and singable melody.",
+    chords:"G  ·  C  ·  D7",
+    tab:"5|0---0---0---0---0---0---0---0-|\n1|--0-2-0---2-0-2---0-2-0---0-2-|\n2|0---0---2---0---0---0---0---0-|\n3|--0---0---0---2---0---0---0---|\n4|0---0---0---0---0---0---0---0-|",
+    tips:["Three-chord song: G, C, D7. The backbone of bluegrass.", "Roll pattern switches to alternating thumb on the C chord.", "Try singing the melody while playing for multi-tasking practice."] },
+  { id:"bg6", title:"Shady Grove", artist:"Traditional", genre:"Bluegrass", key:"Dm", capo:0, diff:"Intermediate", bpm:"80-110",
+    desc:"A haunting Dorian mode melody. Darker and more mysterious than standard major-key tunes.",
+    chords:"Dm  ·  C  ·  Am",
+    tab:"5|0---0---0---0---0---0---0---0-|\n1|--3-2-0---0-2-0---3-2-0---0-2-|\n2|0---0---3---0---0---0---3---0-|\n3|--2---0---2---0---2---0---2---|\n4|0---0---0---0---0---0---0---0-|",
+    tips:["The Dm shape: 2nd fret on 3rd string, open 2nd and 1st. Dark and beautiful.", "Dorian mode gives it that Celtic mystery — neither major nor minor.", "Play with a lilting feel rather than hard bluegrass drive."] },
+  { id:"bg7", title:"Man of Constant Sorrow", artist:"Stanley Brothers", genre:"Bluegrass", key:"G", capo:0, diff:"Intermediate", bpm:"80-110",
+    desc:"Popularized by O Brother Where Art Thou. A timeless Appalachian song of hardship.",
+    chords:"G  ·  C  ·  D",
+    tab:"5|0---0---0---0---0---0---0---0-|\n1|--2-0-0---0-0-0---2-0-0---2-2-|\n2|0---0---0---0---0---0---0---0-|\n3|--0---2---0---0---0---2---0---|\n4|0---0---0---0---0---0---0---0-|",
+    tips:["Slow and dignified. Resist the urge to rush this one.", "The vocal melody sits high. Comp underneath with alternating thumb roll.", "G to C to D progression carries real emotional weight here."] },
+  { id:"bg8", title:"Roll in My Sweet Babys Arms", artist:"Flatt & Scruggs", genre:"Bluegrass", key:"G", capo:0, diff:"Intermediate", bpm:"100-140",
+    desc:"A joyful uptempo bluegrass standard. Pure Scruggs-style fun with a bouncy swing feel.",
+    chords:"G  ·  C  ·  D7",
+    tab:"5|0---0---0---0---0---0---0---0-|\n1|--0-2-0---2-0-0---0-2-2---0-0-|\n2|0---0---0---0---0---0---0---0-|\n3|--2---0---0---2---2---0---0---|\n4|0---0---0---0---0---0---0---0-|",
+    tips:["Forward-reverse roll: T-I-M-T-I-T-M-I on the chorus.", "Tag the ending with the classic Scruggs G-lick.", "Keep the 5th string ringing as a drone throughout."] },
+  { id:"bg9", title:"Salt Creek", artist:"Bill Monroe", genre:"Bluegrass", key:"A", capo:2, diff:"Intermediate", bpm:"110-150",
+    desc:"A driving Bill Monroe instrumental. Capo 2, G shapes, maximum energy.",
+    chords:"G (=A)  ·  D (=E)  ·  C (=D)  capo shapes",
+    tab:"A-Part:\n5|0---0---0---0---0---0---0---0-|\n1|--0-2-0---2-0-0---0-2-0---0-0-|\n2|0---0---2---0---0---0---2---0-|\n3|--0---0---0---2---0---0---0---|\n4|0---0---0---0---0---0---0---0-|",
+    tips:["Classic Monroe drive. Accent beats 2 and 4 for that hard-driving feel.", "The B-part climbs up the neck. Watch frets 5 and 7 on the 1st string.", "This is a jam session staple. Learn it and you will play it every session."] },
+  { id:"bg10", title:"Rocky Top", artist:"Bryant & Bryant", genre:"Bluegrass", key:"G", capo:0, diff:"Beginner", bpm:"100-140",
+    desc:"Tennessees anthem. Fast, bright, endlessly energetic — the definition of banjo joy.",
+    chords:"G  ·  C  ·  D  ·  Am",
+    tab:"5|0---0---0---0---0---0---0---0-|\n1|--2-0-0---0-0-0---2-0-0---2-2-|\n2|0---0---0---0---0---0---0---0-|\n3|--0---2---0---0---0---2---0---|\n4|0---0---0---0---0---0---0---0-|",
+    tips:["Bright, driving forward roll. Thumb hits the 5th string drone constantly.", "The Am chord bridges G and D. Notice how it adds tension before resolving.", "At 140 BPM this is pure joy. Work up slowly."] },
+  { id:"bg11", title:"Will the Circle Be Unbroken", artist:"A.P. Carter", genre:"Bluegrass", key:"G", capo:0, diff:"Beginner", bpm:"70-100",
+    desc:"The most iconic gospel-bluegrass anthem. Every picker knows this one by heart.",
+    chords:"G  ·  C  ·  D7",
+    tab:"5|0---0---0---0---0---0---0---0-|\n1|--0-2-0---2-0-2---0-0-2---0-2-|\n2|0---0---0---0---0---0---0---0-|\n3|--0---0---2---0---0---0---2---|\n4|0---0---0---0---0---0---0---0-|",
+    tips:["Stately and hymn-like. Do not rush. Let the chord changes breathe.", "The C chord on the word circle is the emotional peak.", "Sing the melody. The banjo should support, not overpower."] },
+  { id:"bg12", title:"Blackberry Blossom", artist:"Traditional", genre:"Bluegrass", key:"G", capo:0, diff:"Intermediate", bpm:"100-130",
+    desc:"A beloved fiddle tune that challenges you to play across all five strings.",
+    chords:"G  ·  D  ·  Em  ·  C",
+    tab:"A-Part:\n5|0---0---0---0---0---0---0---0-|\n1|--0-2-4---4-2-0---2-4-2---0-2-|\n2|0---0---0---0---0---0---0---0-|\n3|--0---0---2---0---0---0---2---|\n4|0---0---0---0---0---0---0---0-|",
+    tips:["Uses fret 4 on the 1st string — unusual in G but essential for this melody.", "The B-part drops to Em. Feel the emotional shift.", "Great tune for developing melodic (Bill Keith) style playing."] },
+  { id:"bg13", title:"Going Down the Road Feeling Bad", artist:"Woody Guthrie", genre:"Bluegrass", key:"G", capo:0, diff:"Beginner", bpm:"80-110",
+    desc:"Woody Guthrie made it famous, but it is old-time at heart. Rootsy and hugely singable.",
+    chords:"G  ·  C  ·  D7",
+    tab:"5|0---0---0---0---0---0---0---0-|\n1|--0-0-2---2-2-0---0-0-2---2-0-|\n2|0---0---0---2---0---0---0---0-|\n3|--0---0---0---0---0---0---0---|\n4|0---0---0---0---0---0---0---0-|",
+    tips:["Keep a loose, rolling feel. This is road music, not tight bluegrass.", "The C chord adds a slightly bluesier tinge. Lean into it.", "Classic three-chord progression. Perfect jam starter."] },
+  { id:"dy1", title:"Blowin in the Wind", artist:"Bob Dylan", genre:"Folk", key:"G", capo:0, diff:"Beginner", bpm:"70-90",
+    desc:"Dylans most iconic protest song. Three chords, timeless melody, perfect campfire banjo.",
+    chords:"G  ·  C  ·  D",
+    tab:"5|0---0---0---0---0---0---0---0-|\n1|--0-0-2---2-2-0---0-2-0---0-0-|\n2|0---0---0---2---0---0---0---0-|\n3|--0---0---0---0---2---0---0---|\n4|0---0---0---0---0---0---0---0-|",
+    tips:["G to C to D is the entire harmonic world of this song. Simple and pure.", "Strum gently between melody notes for a folky, open sound.", "Sing the melody. The banjo should feel warm and conversational."] },
+  { id:"dy2", title:"Knockin on Heavens Door", artist:"Bob Dylan", genre:"Folk", key:"G", capo:0, diff:"Beginner", bpm:"60-80",
+    desc:"One of rocks most beautiful melodies. Simple and devastating on banjo.",
+    chords:"G  ·  D  ·  Am  ·  C",
+    tab:"5|0---0---0---0---0---0---0---0-|\n1|--0-2-0---2-0-2---0-2-0---0-2-|\n2|0---0---2---0---0---0---2---0-|\n3|--0---0---0---0---0---0---0---|\n4|0---0---0---0---0---0---0---0-|",
+    tips:["The G to D to Am to C progression is pure gold. Four chords, infinite emotion.", "Play it slowly and let every note sing. This song hates being rushed.", "Am chord: 2nd fret on 3rd string. Rich and mournful."] },
+  { id:"dy3", title:"The Times They Are A-Changin", artist:"Bob Dylan", genre:"Folk", key:"G", capo:0, diff:"Beginner", bpm:"60-80",
+    desc:"Waltz time (3/4) — unusual for banjo but majestic. Dylans most urgent anthem.",
+    chords:"G  ·  C  ·  D  ·  Em  ·  Am",
+    tab:"3/4 waltz time (3 beats per measure):\n5|0---0---0---0---0---0-|\n1|--2---0---2---0---2---|\n2|0---0---0---0---0---0-|\n3|--0---0---0---0---0---|\n4|0---0---0---0---0---0-|",
+    tips:["3/4 waltz feel: ONE-two-three, ONE-two-three. Count it out loud at first.", "Roll pattern: T-I-M per beat gives a three-finger waltz roll.", "The Em and Am chords add the somber, prophetic weight Dylan intended."] },
+  { id:"dy4", title:"Dont Think Twice Its Alright", artist:"Bob Dylan", genre:"Folk", key:"G", capo:0, diff:"Intermediate", bpm:"70-90",
+    desc:"Dylans most intricate acoustic piece translates beautifully to rolling banjo arpeggios.",
+    chords:"G  ·  D  ·  Em  ·  C  ·  A7",
+    tab:"5|0---0---0---0---0---0---0---0-|\n1|--2-0-2---2-2-0---0-2-0---2-0-|\n2|0---0---2---0---0---0---0---0-|\n3|--0---0---0---0---2---0---0---|\n4|0---2---0---0---0---0---0---0-|",
+    tips:["The bassline walk via the 4th string is the signature move.", "Use alternating thumb roll to emphasize the walking bass feel.", "The A7 chord before D is the secret tension builder. Do not skip it."] },
+  { id:"dy5", title:"Mr Tambourine Man", artist:"Bob Dylan", genre:"Folk", key:"G", capo:2, diff:"Intermediate", bpm:"70-90",
+    desc:"Dreamy and poetic. Capo 2 gives the brightness of Dylans original A key.",
+    chords:"G (=A)  ·  D (=E)  ·  C (=D)  capo shapes",
+    tab:"5|0---0---0---0---0---0---0---0-|\n1|--2-0-2---0-2-0---2-0-2---0-0-|\n2|0---0---0---0---0---0---0---0-|\n3|--0---0---2---0---0---0---2---|\n4|0---0---0---0---0---0---0---0-|",
+    tips:["Let the melody float. This song is about atmosphere, not precision.", "The chord sequence G to D to C to G (capo 2) feels like drifting in a dream.", "Try a slow arpeggiated roll instead of hard Scruggs style. Ethereal."] },
+  { id:"ps1", title:"If I Had a Hammer", artist:"Pete Seeger", genre:"Folk", key:"G", capo:0, diff:"Beginner", bpm:"80-100",
+    desc:"Pete Seegers rallying cry for justice. Strong, singable, and banjo-perfect.",
+    chords:"G  ·  C  ·  D7  ·  Em",
+    tab:"5|0---0---0---0---0---0---0---0-|\n1|--0-2-0---2-0-0---0-2-0---2-2-|\n2|0---0---0---0---0---0---0---0-|\n3|--0---0---0---2---0---0---0---|\n4|0---0---0---0---0---0---0---0-|",
+    tips:["Strong, declarative feel. Do not shy away from hitting the melody notes hard.", "The Em chord on the bridge adds real depth.", "Great song to sing at full volume with friends."] },
+  { id:"ps2", title:"Where Have All the Flowers Gone", artist:"Pete Seeger", genre:"Folk", key:"G", capo:0, diff:"Beginner", bpm:"65-80",
+    desc:"A gentle cyclical anti-war ballad. The repeating melody suits banjo beautifully.",
+    chords:"G  ·  Em  ·  C  ·  D7",
+    tab:"5|0---0---0---0---0---0---0---0-|\n1|--0-0-2---2-0-2---0-2-0---0-2-|\n2|0---0---0---0---0---0---0---0-|\n3|--2---0---2---0---0---0---0---|\n4|0---0---0---0---0---0---0---0-|",
+    tips:["The G to Em movement at the start of each verse is the emotional core.", "Play tenderly. This is a lament, not a hoedown.", "The melody repeats with each verse. Once learned it is effortless."] },
+  { id:"ps3", title:"Turn Turn Turn", artist:"Pete Seeger", genre:"Folk", key:"G", capo:0, diff:"Beginner", bpm:"75-95",
+    desc:"Lyrics from Ecclesiastes, music by Seeger. A flowing hopeful melody.",
+    chords:"G  ·  C  ·  D7  ·  F",
+    tab:"5|0---0---0---0---0---0---0---0-|\n1|--2-0-2---0-0-2---2-0-2---0-0-|\n2|0---0---0---0---0---0---0---0-|\n3|--0---0---2---0---0---0---0---|\n4|0---0---0---0---0---0---0---0-|",
+    tips:["The F chord adds a surprising softness. Barre fret 1 on strings 1 and 2.", "Flowing, circular rhythm. The music itself turns like the seasons.", "The Byrds version is a great melody reference to listen to."] },
+  { id:"ps4", title:"This Land Is Your Land", artist:"Woody Guthrie", genre:"Folk", key:"G", capo:0, diff:"Beginner", bpm:"80-100",
+    desc:"Americas true national anthem. Open G banjo was made for this song.",
+    chords:"G  ·  D7  ·  C",
+    tab:"5|0---0---0---0---0---0---0---0-|\n1|--2-2-0---2-0-0---2-2-0---0-2-|\n2|0---0---0---0---0---0---0---0-|\n3|--0---0---0---0---0---0---0---|\n4|0---0---0---0---0---0---0---0-|",
+    tips:["Strum between roll notes for a big open folk feel on the chorus.", "This song was made to be sung loudly with as many people as possible.", "Capo 3 if you want to match Pete Seegers original long-neck key."] },
+  { id:"ppm1", title:"Puff the Magic Dragon", artist:"Peter Paul & Mary", genre:"Folk", key:"G", capo:0, diff:"Beginner", bpm:"75-90",
+    desc:"Whimsical and warm. Beautiful on solo banjo — gentle enough for any audience.",
+    chords:"G  ·  Bm  ·  C  ·  D7  ·  Em",
+    tab:"5|0---0---0---0---0---0---0---0-|\n1|--0-2-0---2-0-2---0-2-2---2-0-|\n2|0---0---0---0---0---0---0---0-|\n3|--2---0---2---0---0---0---0---|\n4|0---0---0---0---0---0---0---0-|",
+    tips:["Bm chord: fret 3 on strings 1 and 2. Adds a wistful aching quality.", "Keep it light and airy. This is a lullaby at heart.", "The move from Em back to G in the chorus is genuinely moving."] },
+  { id:"ppm2", title:"Leaving on a Jet Plane", artist:"Peter Paul & Mary", genre:"Folk", key:"G", capo:0, diff:"Beginner", bpm:"70-90",
+    desc:"John Denver wrote it, PP&M made it famous. Warm, yearning, immediately singable.",
+    chords:"G  ·  C  ·  D7",
+    tab:"5|0---0---0---0---0---0---0---0-|\n1|--2-0-2---0-2-0---2-2-0---2-0-|\n2|0---0---0---0---0---0---0---0-|\n3|--0---0---2---0---0---0---0---|\n4|0---0---2---0---0---0---2---0-|",
+    tips:["Rock the roll gently. This needs warmth, not speed.", "The G to C transition is the signature move. Make it smooth.", "Simple enough to sing and play at the same time."] },
+  { id:"ppm3", title:"500 Miles", artist:"Peter Paul & Mary", genre:"Folk", key:"G", capo:0, diff:"Beginner", bpm:"80-100",
+    desc:"Heartbreaking distance and longing. Energetic chorus, tender verses. Universally beloved.",
+    chords:"G  ·  Em  ·  C  ·  D",
+    tab:"5|0---0---0---0---0---0---0---0-|\n1|--0-0-2---0-2-0---2-0-2---0-2-|\n2|0---0---0---0---0---0---0---0-|\n3|--2---0---2---0---0---0---0---|\n4|0---0---0---0---0---0---0---0-|",
+    tips:["The G to Em to C to D circle is beautifully satisfying to play.", "Verse is restrained, chorus explodes. Match your energy to that.", "Em chord gives the verses their aching lonesome quality."] },
+  { id:"jb1", title:"House of the Rising Sun", artist:"Traditional", genre:"Folk", key:"Am", capo:0, diff:"Intermediate", bpm:"60-80",
+    desc:"The most recorded American folk song. Minor key drama perfect for banjo.",
+    chords:"Am  ·  C  ·  D  ·  F  ·  E7",
+    tab:"3/4 time:\n5|0---0---0---0---0---0---0---0-|\n1|--0-2-0---1-2-0---2-2-0---1-0-|\n2|0---0---0---0---0---0---2---0-|\n3|--2---0---0---0---0---0---0---|\n4|0---0---3---0---2---0---0---0-|",
+    tips:["Minor key. Am shape: 2nd fret 3rd string, open 2nd and 1st.", "The F chord: fret 1 on strings 1 and 2, fret 2 on 3rd. Grim and perfect.", "The E7 before Am is the door-closing moment. Let it breathe."] },
+  { id:"jb2", title:"Diamonds and Rust", artist:"Joan Baez", genre:"Folk", key:"D", capo:7, diff:"Intermediate", bpm:"65-80",
+    desc:"Baezs most personal song — bittersweet and hauntingly beautiful. Capo 7 for D.",
+    chords:"G (=D)  ·  Em (=Bm)  ·  C (=G)  capo shapes",
+    tab:"5|0---0---0---0---0---0---0---0-|\n1|--2-0-2---2-2-0---2-0-0---0-2-|\n2|0---0---0---0---0---0---0---0-|\n3|--0---0---0---2---0---0---0---|\n4|0---0---0---0---0---0---0---0-|",
+    tips:["Capo 7 lets G shapes produce the warmth Baezs D key requires.", "Arpeggio-style picking suits this better than hard Scruggs rolls.", "Play softly. This song is a memory, not a performance."] },
+  { id:"bt1", title:"Hey Jude", artist:"The Beatles", genre:"Rock", key:"G", capo:0, diff:"Beginner", bpm:"70-75",
+    desc:"McCartneys anthem of encouragement. The verse melody rolls beautifully on banjo.",
+    chords:"G  ·  D  ·  D7  ·  C",
+    tab:"5|0---0---0---0---0---0---0---0-|\n1|--2-0-0---0-0-2---2-0-2---0-2-|\n2|0---0---2---0---0---0---0---0-|\n3|--0---0---0---0---0---0---0---|\n4|0---0---0---0---0---2---0---0-|",
+    tips:["The D7 chord adds gentle tension before resolving to G.", "Na-na-na chorus: strum open G with thumb for big sing-along feel.", "The rising melody on better-better-BETTER is 1st string: 0-2-0-2-4."] },
+  { id:"bt2", title:"Blackbird", artist:"The Beatles", genre:"Rock", key:"G", capo:0, diff:"Intermediate", bpm:"60-72",
+    desc:"McCartneys fingerpicking masterpiece. Works beautifully as a banjo melody piece.",
+    chords:"G  ·  Am7  ·  C  ·  A7  ·  D",
+    tab:"5|0---0---0---0---0---0---0---0-|\n1|--0-0-2---2-0-2---0-2-4---4-0-|\n2|0---0---0---0---0---0---0---0-|\n3|--0---0---0---0---0---0---2---|\n4|0---0---0---0---3---0---0---0-|",
+    tips:["The chromatic bass walk: 4th string descends 0-2-3. That is the signature.", "Focus on letting each melody note ring fully before rolling onward.", "Slower is better. This song rewards patience and beautiful tone."] },
+  { id:"bt3", title:"Here Comes the Sun", artist:"The Beatles", genre:"Rock", key:"G", capo:2, diff:"Intermediate", bpm:"75-85",
+    desc:"Harrisons masterpiece. Capo 2 matches the original A key. Pure warmth.",
+    chords:"G (=A)  ·  D (=E)  ·  C (=D)  capo shapes",
+    tab:"5|0---0---0---0---0---0---0---0-|\n1|--2-0-0---0-0-0---2-0-0---0-0-|\n2|0---0---0---0---0---0---0---0-|\n3|--0---0---2---0---0---0---0---|\n4|0---0---0---0---0---0---0---0-|",
+    tips:["Opening riff: 1st string 2-0, 2nd string hammer 0h2, back to 1st string open.", "The syncopated rhythm is key. It is NOT straight 8th notes.", "Capo 2 brightens the whole thing. Harrison would approve."] },
+  { id:"bt4", title:"Let It Be", artist:"The Beatles", genre:"Rock", key:"C", capo:5, diff:"Intermediate", bpm:"65-75",
+    desc:"McCartneys hymn of acceptance. Capo 5 puts G shapes in C. Majestic.",
+    chords:"G (=C)  ·  D (=G)  ·  Em (=Am)  ·  C (=F)  capo shapes",
+    tab:"5|0---0---0---0---0---0---0---0-|\n1|--0-2-0---0-0-2---0-2-0---0-0-|\n2|0---0---0---0---0---0---0---0-|\n3|--0---2---0---0---2---0---0---|\n4|0---0---0---0---0---0---0---0-|",
+    tips:["Capo 5: G shapes sound in C. A warm church-like tonality.", "The Em (sounds as Am with capo) gives the verse its solemnity.", "Play the chorus with more strumming energy. It earned its grandeur."] },
+  { id:"bt5", title:"Norwegian Wood", artist:"The Beatles", genre:"Rock", key:"G", capo:0, diff:"Intermediate", bpm:"65-80",
+    desc:"Lennons cryptic folk-rock gem. 3/4 waltz time with an Eastern-tinged melody.",
+    chords:"G  ·  Gm  ·  F  ·  Em7",
+    tab:"3/4 waltz:\n5|0---0---0---0---0---0-|\n1|--2-0-2---0-2-4---2-0-|\n2|0---0---0---0---0---0-|\n3|--0---0---0---0---0---|\n4|0---0---0---0---0---0-|",
+    tips:["The 3/4 feel gives it that Indian quality Lennon loved.", "Gm chord creates instant mystery: barre fret 3 on strings 1 and 2.", "Let fret 4 on the 1st string ring. That is the signature melodic peak."] },
+  { id:"bt6", title:"With a Little Help From My Friends", artist:"The Beatles", genre:"Rock", key:"G", capo:0, diff:"Beginner", bpm:"75-85",
+    desc:"Ringos warmest moment. A sing-along with a friendly shuffling feel.",
+    chords:"G  ·  A  ·  D  ·  C",
+    tab:"5|0---0---0---0---0---0---0---0-|\n1|--2-0-2---0-0-2---0-2-2---0-2-|\n2|0---0---0---0---0---0---0---0-|\n3|--0---0---2---0---0---0---0---|\n4|0---0---0---0---0---0---0---0-|",
+    tips:["The A chord brightens the chorus: 2nd fret on strings 1, 2, and 3.", "Upbeat shuffle feel. Accent the backbeat on beats 2 and 4.", "Made for singing with friends. Do not play this alone if you can help it."] },
+  { id:"ms1", title:"I Will Wait", artist:"Mumford & Sons", genre:"Rock", key:"G", capo:0, diff:"Beginner", bpm:"105-120",
+    desc:"Anthemic, stomping, pure banjo-forward Mumford. One of the greatest modern banjo songs.",
+    chords:"G  ·  C  ·  D  ·  Em",
+    tab:"5|0---0---0---0---0---0---0---0-|\n1|--0-0-0---2-0-0---0-0-0---0-0-|\n2|0---0---0---0---0---0---0---0-|\n3|--0---2---0---0---2---0---2---|\n4|0---0---0---0---0---0---0---0-|",
+    tips:["THE Mumford banjo song. The stamping rhythm is as important as the notes.", "Forward roll with strong thumb accents on beats 1 and 3.", "Let your picking energy build as the song builds. It is a rocket launch."] },
+  { id:"ms2", title:"The Cave", artist:"Mumford & Sons", genre:"Rock", key:"G", capo:0, diff:"Intermediate", bpm:"100-120",
+    desc:"Driving, urgent, emotionally epic. Banjo anchors the whole song.",
+    chords:"G  ·  C  ·  D  ·  Em",
+    tab:"5|0---0---0---0---0---0---0---0-|\n1|--2-0-2---0-0-2---2-0-0---0-2-|\n2|0---0---0---0---0---0---0---0-|\n3|--0---0---2---0---0---0---0---|\n4|0---0---0---0---0---0---0---0-|",
+    tips:["The intro banjo riff is all on the 1st and 2nd strings. Crisp and clear.", "The Em verse needs a softer touch. Contrast makes the chorus land harder.", "At full tempo this is a real workout. Build up over several weeks."] },
+  { id:"ms3", title:"Little Lion Man", artist:"Mumford & Sons", genre:"Rock", key:"Dm", capo:0, diff:"Intermediate", bpm:"110-130",
+    desc:"Furious, fast, and deeply emotional. The banjo drives this like a locomotive.",
+    chords:"Dm  ·  F  ·  C  ·  G",
+    tab:"5|0---0---0---0---0---0---0---0-|\n1|--1-1-1---1-1-3---0-1-0---1-1-|\n2|0---0---0---0---0---0---0---0-|\n3|--2---0---3---0---0---0---2---|\n4|0---0---0---0---0---0---0---0-|",
+    tips:["Minor key feel. The Dm chord grounds this in something raw and urgent.", "F chord (fret 1 barre on strings 1-2) appears constantly. Get it solid.", "One of the fastest Mumford tunes. Master it slowly before pushing tempo."] },
+  { id:"ms4", title:"After the Storm", artist:"Mumford & Sons", genre:"Folk", key:"G", capo:0, diff:"Beginner", bpm:"80-100",
+    desc:"The most tender Mumford song. Quieter and more hopeful than their epics.",
+    chords:"G  ·  C  ·  D  ·  Em",
+    tab:"5|0---0---0---0---0---0---0---0-|\n1|--0-2-0---0-0-2---2-0-2---0-0-|\n2|0---0---0---0---0---0---0---0-|\n3|--0---0---2---0---0---0---2---|\n4|0---0---0---0---0---0---0---0-|",
+    tips:["Play softly and leave space. This song breathes.", "The Em chord near the end of each line is the emotional payoff. Hold it.", "Perfect intro to Mumfords style before tackling their faster songs."] },
+  { id:"hz1", title:"Work Song", artist:"Hozier", genre:"Folk", key:"G", capo:0, diff:"Intermediate", bpm:"75-90",
+    desc:"Rootsy, bluesy Hozier at his most earthy. The banjo riff was made for this.",
+    chords:"G  ·  Em  ·  C  ·  D",
+    tab:"5|0---0---0---0---0---0---0---0-|\n1|--0-0-2---2-0-2---0-0-2---2-0-|\n2|0---0---0---0---0---0---0---0-|\n3|--2---0---2---0---0---0---2---|\n4|0---0---0---2---0---0---0---0-|",
+    tips:["The Em chord is the emotional core. Hozier loves that minor VI chord.", "The blues feel comes from playing slightly behind the beat. Do not rush.", "Listen to the original. That guitar riff translates perfectly to banjo roll."] },
+  { id:"hz2", title:"Cherry Wine", artist:"Hozier", genre:"Folk", key:"G", capo:0, diff:"Beginner", bpm:"60-75",
+    desc:"Hushed, gentle, devastating. One of Hoziers most intimate performances.",
+    chords:"G  ·  D  ·  Em  ·  C",
+    tab:"5|0---0---0---0---0---0---0---0-|\n1|--0-2-0---0-0-2---0-2-0---0-0-|\n2|0---0---0---0---0---0---0---0-|\n3|--0---0---2---0---2---0---0---|\n4|0---0---0---0---0---0---0---0-|",
+    tips:["Play with the lightest touch possible. Barely breathe on the strings.", "The G to Em movement carries all the emotional weight of this song.", "Let the 5th string drone fade naturally. Do not re-pick it aggressively."] },
+  { id:"hz3", title:"Take Me to Church", artist:"Hozier", genre:"Rock", key:"Am", capo:0, diff:"Intermediate", bpm:"70-85",
+    desc:"Hoziers breakthrough. Dark, powerful, gospel-tinged. Minor key at its most dramatic.",
+    chords:"Am  ·  F  ·  C  ·  G  ·  E",
+    tab:"5|0---0---0---0---0---0---0---0-|\n1|--0-1-0---0-0-1---0-0-0---1-0-|\n2|0---0---0---0---0---0---0---0-|\n3|--2---0---0---0---0---0---2---|\n4|0---0---3---0---0---0---0---0-|",
+    tips:["Am key: the 5th string drone (G) creates slight tension against Am. Beautiful.", "The F chord: fret 1 on strings 1-2, fret 2 on 3rd. Worth mastering.", "E chord before Am is the V-i resolution. The most dramatic move in music."] },
+  { id:"hz4", title:"From Eden", artist:"Hozier", genre:"Folk", key:"G", capo:0, diff:"Intermediate", bpm:"70-85",
+    desc:"Lush, sensual, and serpentine. The rolling acoustic feel maps perfectly to banjo.",
+    chords:"G  ·  D  ·  C  ·  Em",
+    tab:"5|0---0---0---0---0---0---0---0-|\n1|--2-0-2---2-0-0---0-2-0---2-2-|\n2|0---0---0---0---0---0---0---0-|\n3|--0---0---2---0---0---0---0---|\n4|0---0---0---0---0---0---2---0-|",
+    tips:["The descending bassline on the 4th string adds the serpentine quality.", "Let the melody notes on the 1st string float above the roll.", "This song rewards a flowing arpeggiated feel over hard-driving rolls."] },
+  { id:"mc1", title:"Wagon Wheel", artist:"Old Crow Medicine Show", genre:"Country", key:"G", capo:0, diff:"Beginner", bpm:"85-105",
+    desc:"The modern campfire anthem. The one banjo song to play at any party.",
+    chords:"G  ·  D  ·  Em  ·  C",
+    tab:"5|0---0---0---0---0---0---0---0-|\n1|--0-0-2---2-0-0---0-2-0---0-2-|\n2|0---0---0---0---0---0---0---0-|\n3|--0---0---2---0---2---0---0---|\n4|0---0---0---0---0---0---0---0-|",
+    tips:["G to D to Em to C. One of the most satisfying chord loops ever written.", "When everyone starts singing along: play louder, not faster.", "Capo 2 for key of A if you need to match a singers range."] },
+  { id:"mc2", title:"Take Me Home Country Roads", artist:"John Denver", genre:"Country", key:"G", capo:0, diff:"Beginner", bpm:"80-100",
+    desc:"Pure Americana joy. West Virginia never sounded better than on a 5-string banjo.",
+    chords:"G  ·  Em  ·  D  ·  C",
+    tab:"5|0---0---0---0---0---0---0---0-|\n1|--2-2-0---2-0-0---0-2-2---0-2-|\n2|0---0---0---0---0---0---0---0-|\n3|--2---0---2---0---0---0---0---|\n4|0---0---0---0---0---0---0---0-|",
+    tips:["The Em chord at dark and dusty is where the nostalgia peaks.", "Sing it loud. This song was made for open roads and open hearts.", "Try a strum between roll patterns for a relaxed road-trip feel."] },
+  { id:"mc3", title:"Scarborough Fair", artist:"Traditional", genre:"Folk", key:"Am", capo:0, diff:"Intermediate", bpm:"55-70",
+    desc:"Medieval English ballad made timeless by Simon & Garfunkel. Hauntingly beautiful.",
+    chords:"Am  ·  G  ·  C  ·  D",
+    tab:"3/4 waltz:\n5|0---0---0---0---0---0-|\n1|--2-0-2---0-2-0---3-2-|\n2|0---0---0---0---0---0-|\n3|--2---0---0---0---2---|\n4|0---0---0---0---0---0-|",
+    tips:["The Am to G opening is immediately recognizable. Nail that transition first.", "3/4 waltz time: think ONE-two-three, ONE-two-three.", "The melody sits beautifully on strings 1 and 2. Follow it closely."] },
+  { id:"mc4", title:"Goodnight Irene", artist:"Lead Belly", genre:"Folk", key:"G", capo:0, diff:"Beginner", bpm:"70-85",
+    desc:"One of the most beloved folk songs ever recorded. Timeless, simple, deeply human.",
+    chords:"G  ·  D7  ·  C",
+    tab:"5|0---0---0---0---0---0---0---0-|\n1|--2-0-2---0-0-2---2-2-0---2-0-|\n2|0---0---0---0---0---0---0---0-|\n3|--0---0---0---0---0---0---0---|\n4|0---0---0---0---0---0---0---0-|",
+    tips:["Simple and direct. G to D7 to C is all you need.", "Sing it gently. This is a lullaby as much as a folk song.", "Perfect last song of the night around any fire."] },
+  { id:"mc5", title:"Dark Hollow", artist:"Traditional / Grateful Dead", genre:"Bluegrass", key:"G", capo:0, diff:"Beginner", bpm:"80-100",
+    desc:"Old-time tune adopted by the Dead. Lonesome, haunted, and deceptively simple.",
+    chords:"G  ·  C  ·  D7",
+    tab:"5|0---0---0---0---0---0---0---0-|\n1|--0-0-2---0-2-0---2-0-0---2-2-|\n2|0---0---0---0---0---0---0---0-|\n3|--0---0---2---0---0---0---0---|\n4|0---0---0---0---0---0---0---0-|",
+    tips:["The lonesome feeling comes from sitting on the open 5th string drone.", "G to C to D7. Simple enough to improvise variations after learning the melody.", "Great Dead song to play. The band loved old-time and bluegrass deeply."] },
+  { id:"mc6", title:"Long Black Veil", artist:"Lefty Frizzell", genre:"Country", key:"G", capo:0, diff:"Beginner", bpm:"70-85",
+    desc:"A gothic country classic with one of the most evocative melodies in American music.",
+    chords:"G  ·  C  ·  D",
+    tab:"5|0---0---0---0---0---0---0---0-|\n1|--2-0-2---0-0-0---2-0-2---0-0-|\n2|0---0---0---0---0---0---0---0-|\n3|--0---0---2---0---0---0---0---|\n4|0---0---0---0---0---0---0---0-|",
+    tips:["Three chords, maximum atmosphere. The melody does all the work.", "Play with a slight swing feel. This lives between bluegrass and country.", "The Bands version with Levon Helm is the essential reference."] },
+  { id:"mc7", title:"Pretty Polly", artist:"Traditional", genre:"Bluegrass", key:"Dm", capo:0, diff:"Intermediate", bpm:"70-90",
+    desc:"A dark Appalachian ballad in Dorian mode. Eerie, minor-key, and utterly gripping.",
+    chords:"Dm  ·  C  ·  Am",
+    tab:"5|0---0---0---0---0---0---0---0-|\n1|--3-2-0---0-2-0---3-2-0---0-3-|\n2|0---0---3---0---0---0---3---0-|\n3|--2---0---2---0---2---0---2---|\n4|0---0---0---0---0---0---0---0-|",
+    tips:["Play slowly and let the dark melody breathe between notes.", "Minor-key drone on 5th string creates relentless tension.", "One of banjos most dramatic modal pieces. Embrace the darkness."] },
+];
+
+const GENRES_FILTER = ["All","Bluegrass","Folk","Country","Rock"];
+const DIFFS_FILTER  = ["All","Beginner","Intermediate","Advanced"];
+
+function SongsView({ completedSongs, completeSONG, cloudSongs }) {
+  const allSongs = React.useMemo(() => {
+    if (!cloudSongs || cloudSongs.length === 0) return SONG_LIBRARY;
+    const base = SONG_LIBRARY.filter(s => !cloudSongs.find(c => c.id === s.id));
+    return [...base, ...cloudSongs];
+  }, [cloudSongs]);
+  const [genreF, setGenreF] = useState("All");
+  const [diffF,  setDiffF]  = useState("All");
+  const [search, setSearch] = useState("");
+  const [active, setActive] = useState(null);
+  const hasCloud = cloudSongs && cloudSongs.length > 0;
+
+  const filtered = allSongs.filter(s => {
+    if (genreF !== "All" && s.genre !== genreF) return false;
+    if (diffF  !== "All" && s.diff  !== diffF)  return false;
+    if (search && !s.title.toLowerCase().includes(search.toLowerCase()) &&
+        !s.artist.toLowerCase().includes(search.toLowerCase())) return false;
+    return true;
+  });
+  const diffColor = d => d === "Beginner" ? C.teal : d === "Intermediate" ? C.amber : C.red;
+
+  return (
+    <div className="animate-up">
+      <div style={{ fontFamily:"'Rye',serif", color:C.gold, fontSize:20, marginBottom:4 }}>
+        \ud83c\udfb5 Song Library
+      </div>
+      <div style={{ fontFamily:"'Rajdhani',sans-serif", color:C.muted, fontSize:13, marginBottom:16 }}>
+        {allSongs.length} songs · {completedSongs.length} learned{hasCloud ? " · ✨ Cloud updated" : ""} · tap any card for the lesson
+      </div>
+      <input value={search} onChange={e=>setSearch(e.target.value)}
+        placeholder="Search songs or artists..."
+        style={{ width:"100%", background:C.card, border:`1.5px solid ${C.border}`,
+          borderRadius:10, padding:"10px 14px", color:C.text, marginBottom:12,
+          fontFamily:"'Rajdhani',sans-serif", fontSize:15, outline:"none" }}
+        onFocus={e=>e.target.style.borderColor=C.gold}
+        onBlur={e=>e.target.style.borderColor=C.border} />
+      <div style={{ display:"flex", gap:7, marginBottom:8, overflowX:"auto", paddingBottom:2 }}>
+        {GENRES_FILTER.map(g=>(
+          <button key={g} onClick={()=>setGenreF(g)} style={{
+            background:genreF===g?C.gold:C.card, border:`1px solid ${genreF===g?C.gold:C.border}`,
+            color:genreF===g?"#090C1A":C.muted, borderRadius:20, padding:"5px 13px",
+            fontFamily:"'Rajdhani',sans-serif", fontWeight:700, fontSize:12,
+            cursor:"pointer", flexShrink:0, whiteSpace:"nowrap" }}>{g}</button>
+        ))}
+      </div>
+      <div style={{ display:"flex", gap:7, marginBottom:14, overflowX:"auto", paddingBottom:2 }}>
+        {DIFFS_FILTER.map(d=>(
+          <button key={d} onClick={()=>setDiffF(d)} style={{
+            background:diffF===d?(d==="All"?C.gold:diffColor(d)):C.card,
+            border:`1px solid ${diffF===d?(d==="All"?C.gold:diffColor(d)):C.border}`,
+            color:diffF===d?"#090C1A":C.muted, borderRadius:20, padding:"5px 13px",
+            fontFamily:"'Rajdhani',sans-serif", fontWeight:700, fontSize:12,
+            cursor:"pointer", flexShrink:0, whiteSpace:"nowrap" }}>{d}</button>
+        ))}
+      </div>
+
+      {active && (
+        <div style={{ position:"fixed", inset:0, background:"#000000cc", zIndex:100,
+          display:"flex", alignItems:"flex-end", justifyContent:"center" }}
+          onClick={()=>setActive(null)}>
+          <div style={{ background:C.card, borderTop:`2px solid ${C.gold}88`,
+            borderRadius:"18px 18px 0 0", padding:"22px 18px 36px",
+            width:"100%", maxWidth:560, maxHeight:"88vh", overflowY:"auto",
+            animation:"slide-up 0.28s ease" }}
+            onClick={e=>e.stopPropagation()}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:14 }}>
+              <div>
+                <div style={{ fontFamily:"'Rye',serif", fontSize:19, color:C.gold, marginBottom:3 }}>{active.title}</div>
+                <div style={{ fontFamily:"'Rajdhani',sans-serif", color:C.muted, fontSize:14 }}>{active.artist}</div>
+              </div>
+              <button onClick={()=>setActive(null)}
+                style={{ background:"none", border:"none", color:C.muted, fontSize:22, cursor:"pointer" }}>✕</button>
+            </div>
+            <div style={{ display:"flex", gap:8, marginBottom:14, flexWrap:"wrap" }}>
+              {[{label:active.genre,color:C.gold},{label:active.diff,color:diffColor(active.diff)},
+                {label:"Key "+active.key,color:C.teal},
+                {label:active.capo>0?"Capo "+active.capo:"No Capo",color:C.orange},
+                {label:"\u2669 "+active.bpm+" BPM",color:C.muted}].map(t=>(
+                <span key={t.label} style={{ background:`${t.color}18`, border:`1px solid ${t.color}44`,
+                  color:t.color, borderRadius:20, padding:"3px 10px",
+                  fontFamily:"'Rajdhani',sans-serif", fontSize:11, fontWeight:700 }}>{t.label}</span>
+              ))}
+            </div>
+            <div style={{ fontFamily:"'Rajdhani',sans-serif", color:C.text, fontSize:15, lineHeight:1.6, marginBottom:14 }}>
+              {active.desc}
+            </div>
+            <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:10,
+              padding:"12px 14px", marginBottom:14 }}>
+              <div style={{ fontFamily:"'Rajdhani',sans-serif", color:C.muted, fontSize:10,
+                fontWeight:700, letterSpacing:"0.1em", marginBottom:6 }}>CHORD PROGRESSION</div>
+              <div style={{ fontFamily:"monospace", color:C.gold, fontSize:15 }}>{active.chords}</div>
+            </div>
+            <div style={{ background:"#070A17", border:`1px solid ${C.gold}33`, borderRadius:10,
+              padding:"14px 12px", marginBottom:14, overflowX:"auto" }}>
+              <div style={{ fontFamily:"'Rajdhani',sans-serif", color:C.muted, fontSize:10,
+                fontWeight:700, letterSpacing:"0.1em", marginBottom:8 }}>TABLATURE (Open G tuning)</div>
+              <pre style={{ fontFamily:"monospace", fontSize:12, color:C.gold,
+                lineHeight:1.9, margin:0, whiteSpace:"pre" }}>{active.tab.split("\\n").join("\n")}</pre>
+            </div>
+            <div style={{ marginBottom:20 }}>
+              <div style={{ fontFamily:"'Rajdhani',sans-serif", color:C.muted, fontSize:10,
+                fontWeight:700, letterSpacing:"0.1em", marginBottom:10 }}>PRO TIPS</div>
+              {active.tips.map((tip,i)=>(
+                <div key={i} style={{ display:"flex", gap:10, alignItems:"flex-start", marginBottom:9 }}>
+                  <span style={{ color:C.gold, fontSize:13, marginTop:2, flexShrink:0 }}>◆</span>
+                  <span style={{ fontFamily:"'Rajdhani',sans-serif", color:C.text,
+                    fontSize:14, lineHeight:1.5 }}>{tip}</span>
+                </div>
+              ))}
+            </div>
+            <button className="btn-primary"
+              onClick={()=>{ completeSONG(active); setActive(null); }}
+              style={{ width:"100%",
+                background:completedSongs.includes(active.id)?C.dim:C.gold,
+                border:"none", color:"#090C1A", borderRadius:12, padding:"14px",
+                fontFamily:"'Rajdhani',sans-serif", fontWeight:700, fontSize:16,
+                cursor:completedSongs.includes(active.id)?"default":"pointer" }}>
+              {completedSongs.includes(active.id)
+                ? "\u2713 Song Learned (+25 XP earned)"
+                : "Mark as Learned (+25 XP)"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div style={{ fontFamily:"'Rajdhani',sans-serif", color:C.muted, fontSize:12, marginBottom:12 }}>
+        Showing {filtered.length} of {allSongs.length} songs
+      </div>
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+        {filtered.map(s=>{
+          const done = completedSongs.includes(s.id);
+          return (
+            <div key={s.id} className="card-hover" onClick={()=>setActive(s)} style={{
+              background:C.card, border:`1px solid ${done?C.gold+"66":C.border}`,
+              borderRadius:12, padding:"13px 12px", cursor:"pointer", position:"relative" }}>
+              {done && <div style={{ position:"absolute", top:8, right:8, width:18, height:18,
+                borderRadius:"50%", background:C.gold, display:"flex", alignItems:"center",
+                justifyContent:"center", fontSize:10, color:"#090C1A", fontWeight:900 }}>✓</div>}
+              <div style={{ fontFamily:"'Rajdhani',sans-serif", fontWeight:700, color:C.gold,
+                fontSize:13, marginBottom:2, paddingRight:done?22:0, lineHeight:1.3 }}>{s.title}</div>
+              <div style={{ fontFamily:"'Rajdhani',sans-serif", color:C.muted,
+                fontSize:11, marginBottom:8 }}>{s.artist}</div>
+              <div style={{ display:"flex", gap:5, flexWrap:"wrap" }}>
+                <span style={{ background:`${diffColor(s.diff)}18`,
+                  border:`1px solid ${diffColor(s.diff)}44`, color:diffColor(s.diff),
+                  borderRadius:10, padding:"2px 7px",
+                  fontFamily:"'Rajdhani',sans-serif", fontSize:10, fontWeight:700 }}>{s.diff}</span>
+                <span style={{ background:`${C.gold}11`, border:`1px solid ${C.gold}33`,
+                  color:C.muted, borderRadius:10, padding:"2px 7px",
+                  fontFamily:"'Rajdhani',sans-serif", fontSize:10 }}>
+                  Key {s.key}{s.capo>0?" · Capo "+s.capo:""}
+                </span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      {filtered.length===0 && (
+        <div style={{ textAlign:"center", padding:"40px 20px", color:C.muted,
+          fontFamily:"'Rajdhani',sans-serif" }}>No songs match your filters</div>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
+// MAIN APP
+// ─────────────────────────────────────────────
+function BanjoApp() {
+  const [tab, setTab] = useState("home");
+  const [xp, setXp] = useState(0);
+  const [level, setLevel] = useState(1);
+  const [streak, setStreak] = useState(3);
+  const [completedLessons, setCompletedLessons] = useState([]);
+  const [completedTechniques, setCompletedTechniques] = useState([]);
+  const [activeLesson, setActiveLesson] = useState(null);
+  const [activeTechnique, setActiveTechnique] = useState(null);
+  const [completedSongs, setCompletedSongs] = useState([]);
+  const [cloudSongs, setCloudSongs] = useState([]);
+  const [activeFret, setActiveFret] = useState(null);
+  const [loaded, setLoaded] = useState(false);
+  const audioRef = useRef(null);
+  const dailyIdx = new Date().getDay() % DAILY_CHALLENGES.length;
+
+  const xpForLevel = (l) => l * 150;
+
+  // Load
+  useEffect(() => {
+    async function load() {
+      try {
+        const r = await window.storage.get("banjo_quest_v1");
+        if (r) {
+          const s = JSON.parse(r.value);
+          setXp(s.xp ?? 0);
+          setLevel(s.level ?? 1);
+          setStreak(s.streak ?? 3);
+          setCompletedLessons(s.completedLessons ?? []);
+          setCompletedTechniques(s.completedTechniques ?? []);
+          setCompletedSongs(s.completedSongs ?? []);
+        }
+      } catch {}
+      setLoaded(true);
+    }
+    load();
+  }, []);
+
+  const persist = useCallback((data) => {
+    try { window.storage.set("banjo_quest_v1", JSON.stringify(data)); } catch {}
+  }, []);
+
+  // Audio
+  const getCtx = () => {
+    if (!audioRef.current) audioRef.current = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioRef.current.state === "suspended") audioRef.current.resume();
+    return audioRef.current;
+  };
+
+  const playNote = useCallback((freq) => {
+    try {
+      const ctx = getCtx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      const osc2 = ctx.createOscillator();
+      const gain2 = ctx.createGain();
+      // Fundamental
+      osc.type = "triangle";
+      osc.frequency.setValueAtTime(freq, ctx.currentTime);
+      gain.gain.setValueAtTime(0.45, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 2.2);
+      // Harmonic overtone
+      osc2.type = "sine";
+      osc2.frequency.setValueAtTime(freq * 2.01, ctx.currentTime);
+      gain2.gain.setValueAtTime(0.15, ctx.currentTime);
+      gain2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 1.0);
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc2.connect(gain2); gain2.connect(ctx.destination);
+      osc.start(); osc.stop(ctx.currentTime + 2.2);
+      osc2.start(); osc2.stop(ctx.currentTime + 1.0);
+    } catch {}
+  }, []);
+
+  const handleFret = useCallback((stringId, fret) => {
+    const freq = STRINGS[stringId].baseFreq * Math.pow(2, fret / 12);
+    playNote(freq);
+    setActiveFret({ string: stringId, fret });
+    setTimeout(() => setActiveFret(null), 700);
+  }, [playNote]);
+
+  const addXp = useCallback((amount, newCL, newCT) => {
+    setXp(prev => {
+      const next = prev + amount;
+      setLevel(prevLevel => {
+        let l = prevLevel;
+        let rem = next;
+        while (rem >= xpForLevel(l)) { rem -= xpForLevel(l); l++; }
+        const state = { xp: next, level: l, streak, completedLessons: newCL, completedTechniques: newCT, completedSongs };
+        persist(state);
+        return l;
+      });
+      return next;
+    });
+  }, [streak, persist]);
+
+  const completeLesson = useCallback((lesson) => {
+    setCompletedLessons(prev => {
+      if (prev.includes(lesson.id)) return prev;
+      const next = [...prev, lesson.id];
+      addXp(lesson.xp, next, completedTechniques);
+      return next;
+    });
+  }, [completedTechniques, addXp]);
+
+  const completeTechnique = useCallback((tech) => {
+    setCompletedTechniques(prev => {
+      if (prev.includes(tech.id)) return prev;
+      const next = [...prev, tech.id];
+      addXp(30, completedLessons, next);
+      return next;
+    });
+  }, [completedLessons, addXp]);
+
+
+  // Complete a song and award XP
+  const completeSONG = useCallback((song) => {
+    setCompletedSongs(prev => {
+      if (prev.includes(song.id)) return prev;
+      const next = [...prev, song.id];
+      addXp(25, completedLessons, completedTechniques);
+      return next;
+    });
+  }, [completedLessons, completedTechniques, addXp]);
+
+  // Tab history for Android back button
+  const tabHistory = useRef(["home"]);
+  const handleTabChange = useCallback((t) => {
+    if (t !== tab) tabHistory.current.push(t);
+    setTab(t);
+  }, [tab]);
+
+  useEffect(() => {
+    window.banjoGoBack = () => {
+      const h = tabHistory.current;
+      if (h.length > 1) { h.pop(); setTab(h[h.length - 1]); }
+    };
+    return () => { delete window.banjoGoBack; };
+  }, []);
+
+  // Cloud songs fetch
+  useEffect(() => {
+    fetch("https://raw.githubusercontent.com/dcheshirecat/BanjoQuest/main/songs.json")
+      .then(r => r.ok ? r.json() : null).catch(() => null)
+      .then(data => { if (Array.isArray(data)) setCloudSongs(data); });
+  }, []);
+
+
+  if (!loaded) return (
+    <div style={{ background: C.bg, minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ fontFamily: "'Rye', serif", color: C.gold, fontSize: 24 }}>🪕 Loading...</div>
+    </div>
+  );
+
+  const TABS = [
+    { id: "home", label: "Home", icon: "🏠" },
+    { id: "learn", label: "Learn", icon: "📚" },
+    { id: "techniques", label: "Technique", icon: "✋" },
+    { id: "songs", label: "Songs", icon: "🎵" },
+  ];
+
+  return (
+    <>
+      <style>{globalCSS}</style>
+      <div style={{ background: C.bg, minHeight: "100vh", display: "flex", flexDirection: "column", fontFamily: "'Rajdhani', sans-serif" }}>
+
+        {/* ── Header ── */}
+        <header style={{
+          background: C.surface, borderBottom: `1px solid ${C.border}`,
+          padding: "10px 16px", position: "sticky", top: 0, zIndex: 50,
+          display: "flex", alignItems: "center", gap: 12,
+        }}>
+          <div style={{ fontFamily: "'Rye', serif", color: C.gold, fontSize: 18, letterSpacing: "0.04em", flexShrink: 0 }}>
+            🪕 BanjoQuest
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
+              <span style={{ fontSize: 10, color: C.muted }}>LVL {level} · {xp % xpForLevel(level)}/{xpForLevel(level)} XP</span>
+              <span style={{ fontSize: 12 }}>
+                <span style={{ animation: "flame 1.2s ease infinite", display: "inline-block" }}>🔥</span>
+                <span style={{ color: C.orange, fontSize: 12, fontWeight: 700, marginLeft: 2 }}>{streak}</span>
+              </span>
+            </div>
+            <div style={{ height: 5, background: C.dim, borderRadius: 3, overflow: "hidden" }}>
+              <div style={{
+                height: "100%", borderRadius: 3,
+                width: `${Math.min(100, ((xp % xpForLevel(level)) / xpForLevel(level)) * 100)}%`,
+                background: `linear-gradient(90deg, ${C.amber}, ${C.gold})`,
+                boxShadow: `0 0 6px ${C.gold}88`,
+                transition: "width 0.5s ease",
+              }} />
+            </div>
+          </div>
+          <div style={{
+            flexShrink: 0, width: 36, height: 36, borderRadius: "50%",
+            background: `conic-gradient(${C.gold} ${Math.min(100, ((xp % xpForLevel(level)) / xpForLevel(level)) * 100 * 3.6)}deg, ${C.dim} 0)`,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            animation: "glow-pulse 2.5s ease infinite",
+          }}>
+            <div style={{
+              width: 27, height: 27, borderRadius: "50%", background: C.bg,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontFamily: "'Rye', serif", fontSize: 12, color: C.gold,
+            }}>{level}</div>
+          </div>
+        </header>
+
+        {/* ── Content ── */}
+        <div style={{ flex: 1, overflowY: "auto", padding: "16px 14px 80px" }}>
+          {tab === "home" && (
+            <HomeView
+              level={level} xp={xp} streak={streak}
+              completedLessons={completedLessons} completedTechniques={completedTechniques}
+              dailyChallenge={DAILY_CHALLENGES[dailyIdx]}
+              onTabChange={handleTabChange}
+            />
+          )}
+          {tab === "learn" && (
+            <LearnView
+              lessons={LESSONS} completedLessons={completedLessons}
+              activeLesson={activeLesson} setActiveLesson={setActiveLesson}
+              completeLesson={completeLesson}
+              activeFret={activeFret} onFret={handleFret}
+              playNote={playNote}
+            />
+          )}
+          {tab === "techniques" && (
+            <TechniquesView
+              techniques={TECHNIQUES} completedTechniques={completedTechniques}
+              activeTechnique={activeTechnique} setActiveTechnique={setActiveTechnique}
+              completeTechnique={completeTechnique}
+              activeFret={activeFret} onFret={handleFret}
+            />
+          )}
+          {tab === "songs" && (
+            <SongsView
+              completedSongs={completedSongs}
+              completeSONG={completeSONG}
+              cloudSongs={cloudSongs}
+            />
+          )}
+        </div>
+
+        {/* ── Bottom Nav ── */}
+        <nav style={{
+          position: "fixed", bottom: 0, left: 0, right: 0,
+          background: C.surface, borderTop: `1px solid ${C.border}`,
+          display: "flex", zIndex: 50,
+          backdropFilter: "blur(10px)",
+        }}>
+          {TABS.map(t => (
+            <button
+              key={t.id}
+              className="nav-tab"
+              onClick={() => handleTabChange(t.id)}
+              style={{
+                flex: 1, background: "none", border: "none",
+                padding: "10px 4px 8px",
+                display: "flex", flexDirection: "column", alignItems: "center", gap: 2,
+                cursor: "pointer",
+                borderTop: tab === t.id ? `2px solid ${C.gold}` : "2px solid transparent",
+                transition: "all 0.15s",
+              }}
+            >
+              <span style={{ fontSize: 18 }}>{t.icon}</span>
+              <span style={{
+                fontSize: 10, fontWeight: 700, letterSpacing: "0.04em",
+                color: tab === t.id ? C.gold : C.muted,
+                fontFamily: "'Rajdhani', sans-serif",
+              }}>{t.label.toUpperCase()}</span>
+            </button>
+          ))}
+        </nav>
+      </div>
+    </>
+  );
+}
+
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(React.createElement(BanjoApp));
+  </script>
+</body>
+</html>
