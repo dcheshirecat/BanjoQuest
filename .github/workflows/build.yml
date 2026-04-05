@@ -77,6 +77,8 @@ jobs:
             <application
                 android:allowBackup="true"
                 android:label="@string/app_name"
+                android:icon="@mipmap/ic_launcher"
+                android:roundIcon="@mipmap/ic_launcher_round"
                 android:theme="@style/Theme.AppCompat.NoActionBar">
               <activity android:name=".MainActivity" android:exported="true"
                   android:screenOrientation="portrait">
@@ -187,6 +189,41 @@ jobs:
           zipStoreBase=GRADLE_USER_HOME
           zipStorePath=wrapper/dists
           PROPS
+
+      - name: Generate app icon
+        run: |
+          sudo apt-get install -y imagemagick
+          for size in 48 72 96 144 192; do
+            case $size in
+              48)  dpi="mdpi"    ;;
+              72)  dpi="hdpi"    ;;
+              96)  dpi="xhdpi"   ;;
+              144) dpi="xxhdpi"  ;;
+              192) dpi="xxxhdpi" ;;
+            esac
+            mkdir -p app/src/main/res/mipmap-${dpi}
+            fs=$((size*9/20))
+            convert -size ${size}x${size} xc:"#090C1A" \
+              -fill "#FFB800" \
+              -draw "roundrectangle 4,4,$((size-5)),$((size-5)),18,18" \
+              -fill "#090C1A" \
+              -font DejaVu-Sans-Bold \
+              -pointsize ${fs} \
+              -gravity center \
+              -annotate 0 "BQ" \
+              -fill "#FFB80088" \
+              -draw "roundrectangle 2,2,$((size-3)),$((size-3)),20,20" \
+              app/src/main/res/mipmap-${dpi}/ic_launcher.png
+            convert -size ${size}x${size} xc:"#090C1A" \
+              -fill "#FFB800" \
+              -draw "circle $((size/2)),$((size/2)),$((size/2)),$((size/10))" \
+              -fill "#090C1A" \
+              -font DejaVu-Sans-Bold \
+              -pointsize ${fs} \
+              -gravity center \
+              -annotate 0 "BQ" \
+              app/src/main/res/mipmap-${dpi}/ic_launcher_round.png
+          done
 
       # ── Generate single-use keystore ──────────────────────────────────────
 
